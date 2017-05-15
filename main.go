@@ -9,6 +9,11 @@ import (
 )
 
 func main() {
+
+	//if err := resolver.GetPhysicalInterface(); err != nil {
+	//	panic(err)
+	//}
+
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err)
@@ -24,7 +29,8 @@ func main() {
 	for {
 		select {
 		case event := <-events:
-			fmt.Println(event.Type, event.Action, string(event.Actor.ID[0:12]), event.ID, event.From, event.Status, event.Actor.Attributes)
+
+			fmt.Println(event.Type, event.Action, string(event.Actor.ID[0:12]), event.From, event.Status, event.Actor.Attributes)
 
 			if event.Type == "container" && event.Action == "start" {
 				if err := net.UpdateContainer(event.Actor.ID); err != nil {
