@@ -18,37 +18,68 @@ func (net *network) listenEvents() {
 
 			linkMap := net.graph.getRelatedTo(linkId)
 
-			if len(linkMap) == 2 {
-				containerIds := []ContainerID{}
-				ifaces := []string{}
-				for containerId, containerNet := range linkMap {
+			//setup if the link exists
+			if err := net.tryCreateContainerLink(linkMap, linkId); err != nil {
+				fmt.Println(err)
+				break
+			}
 
-					containerIds = append(containerIds, containerId)
-					ifaces = append(ifaces, containerNet.getIfaceFor(linkId))
-				}
+			//teardown if the link does not exist
+			if err := net.tryCleanupContainerLink(linkMap, linkId); err != nil {
+				fmt.Println(err)
+				break
+			}
 
-				fmt.Printf("Should link:\n  %s in %s\n  %s in %s\n", ifaces[0], containerIds[0][0:12], ifaces[1], containerIds[1][0:12])
+		}
+	}
+}
 
-				pid0, err := net.getContainerPid(containerIds[0])
-				if err != nil {
-					fmt.Println(err)
-					break
-				}
-				pid1, err := net.getContainerPid(containerIds[1])
-				if err != nil {
-					fmt.Println(err)
-					break
-				}
+//tryCreateContainerLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
+func (net *network) tryCreateContainerLink(linkMap map[ContainerID]ContainerNetwork, linkId LinkID) error {
+	if len(linkMap) == 2 {
+		containerIds := []ContainerID{}
+		ifaces := []string{}
+		for containerId, containerNet := range linkMap {
 
-				fmt.Println("interfaces:", ifaces)
+			containerIds = append(containerIds, containerId)
+			ifaces = append(ifaces, containerNet.getIfaceFor(linkId))
+		}
 
-				if err:=resolver.SetupLocalContainerLink(ifaces[0], pid0, ifaces[1], pid1); err!=nil{
-					fmt.Println(err)
-					break
-				}
+		fmt.Printf("Should link:\n  %s in %s\n  %s in %s\n", ifaces[0], containerIds[0][0:12], ifaces[1], containerIds[1][0:12])
+
+		pid0, err := net.getContainerPid(containerIds[0])
+		if err != nil {
+			return err
+		}
+		pid1, err := net.getContainerPid(containerIds[1])
+		if err != nil {
+			return err
+		}
+
+		if err := resolver.SetupLocalContainerLink(ifaces[0], pid0, ifaces[1], pid1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//tryCleanupContainerLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
+func (net *network) tryCleanupContainerLink(linkMap map[ContainerID]ContainerNetwork, linkId LinkID) error {
+	if len(linkMap) == 1 {
+		for containerId, containerNet := range linkMap {
+			iface := containerNet.getIfaceFor(linkId)
+			containerPid, err := net.getContainerPid(containerId)
+			if err != nil {
+				return err
+			}
+			if removed, err := resolver.DeleteContainerInterface(iface, containerPid); err != nil {
+				return err
+			} else if removed {
+				fmt.Println("Removing:\n  ", iface, "in", containerId[0:12])
 			}
 		}
 	}
+	return nil
 }
 
 func (net *network) getContainerPid(containerId ContainerID) (int, error) {

@@ -7,10 +7,17 @@ import (
 	"runtime"
 )
 
+//SetupLocalContainerLink ensures a veth pair connects the specified containers
 func SetupLocalContainerLink(ethName0 string, containerPid0 int, ethName1 string, containerPid1 int) error {
 	// Lock the OS Thread so we don't accidentally switch namespaces
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+
+	//get current container's handle
+	ownHandle, err := netlink.NewHandle()
+	if err != nil {
+		return err
+	}
 
 	//get the namespace handles for each container
 	ns0, err := netns.GetFromPid(containerPid0)
@@ -34,116 +41,78 @@ func SetupLocalContainerLink(ethName0 string, containerPid0 int, ethName1 string
 	}
 
 	//ensure that the interfaces don't already exist
-	{
-		up0 := false
-		up1 := false
-		//if the interface exists
-		link0, err := handle0.LinkByName(ethName0)
-		if err == nil {
-			//if the link is not up
-			if link0.Attrs().OperState != netlink.OperUp {
-				//delete
-				handle0.LinkDel(link0)
-			} else {
-				up0 = true
-			}
-		}
-		//if the interface exists
-		link1, err := handle1.LinkByName(ethName1)
-		if err == nil {
-			//if the link is not up
-			if link1.Attrs().OperState != netlink.OperUp {
-				//delete
-				handle1.LinkDel(link1)
-			} else {
-				up1 = true
-			}
-		}
-
-		//if both interfaces are up, then there's nothing to do
-		if up0 && up1 {
-			fmt.Println("Interfaces already up, nothing to do.")
-			return nil
-		} else {
-			//of ether interface is down or unavailable, ensure everything is cleaned up/deleted
-			if up0 {
-				handle0.LinkDel(link0)
-			}
-			if up1 {
-				handle1.LinkDel(link1)
-			}
-		}
+	if up, err := interfacesUpOrDelUnsafe(ethName0, handle0, ethName1, handle1); err != nil {
+		return err
+	} else if up {
+		fmt.Println("Interfaces already up, nothing to do.")
+		return nil
 	}
 
 	//create a new veth pair
-	peer0, peer1, err := createVethPairUnsafe()
+	peer0, peer1, err := createVethPairUnsafe(ownHandle)
 	if err != nil {
 		return err
 	}
 
-	//move interfaces into the container namespaces
-	ownHandle, err := netlink.NewHandle()
-	if err != nil {
+	//move interfaces into the container namespaces, rename them, and bring them up
+	if err := moveNsUnsafe(peer0, ethName0, containerPid0, ownHandle, handle0); err != nil {
 		return err
 	}
-	if err := ownHandle.LinkSetNsPid(peer0, containerPid0); err != nil {
+	if err := moveNsUnsafe(peer1, ethName1, containerPid1, ownHandle, handle1); err != nil {
 		return err
 	}
-	if err := ownHandle.LinkSetNsPid(peer1, containerPid1); err != nil {
-		return err
-	}
-
-	//change names and bring online
-	handle0.LinkSetAlias(peer0, ethName0)
-	if err := handle0.LinkSetName(peer0, ethName0); err != nil {
-		return err
-	}
-	if err := handle0.LinkSetUp(peer0); err != nil {
-		return err
-	}
-
-	if err := handle1.LinkSetName(peer1, ethName1); err != nil {
-		return err
-	}
-	if err := handle1.LinkSetUp(peer1); err != nil {
-		return err
-	}
-
-	//ensure that no addresses are assigned
-	if addrs, err := handle0.AddrList(peer0, 0); err != nil {
-		return err
-	} else {
-		for _, addr := range addrs {
-			handle1.AddrDel(peer0, &addr)
-			fmt.Println(addr)
-		}
-	}
-
-	if addrs, err := handle1.AddrList(peer1, 0); err != nil {
-		return err
-	} else {
-		for _, addr := range addrs {
-			handle1.AddrDel(peer1, &addr)
-			fmt.Println(addr)
-		}
-	}
-
 	return nil
 }
 
-func CreateVethPair() (*netlink.Veth, *netlink.Veth, error) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
-	return createVethPairUnsafe()
-
-}
-func createVethPairUnsafe() (*netlink.Veth, *netlink.Veth, error) {
-
-	ownHandle, err := netlink.NewHandle()
+func interfacesUpOrDelUnsafe(ethName0 string, handle0 *netlink.Handle, ethName1 string, handle1 *netlink.Handle) (bool, error) {
+	link0, err := interfaceUpOrDelUnsafe(ethName0, handle0)
 	if err != nil {
-		return nil, nil, err
+		return false, err
 	}
+	link1, err := interfaceUpOrDelUnsafe(ethName1, handle1)
+	if err != nil {
+		return false, err
+	}
+
+	if link0 != nil && link1 != nil {
+		//if both interfaces are up, then there's nothing to do
+		return true, nil
+	}
+
+	//if either interface is down or unavailable, ensure everything is cleaned up/deleted
+	if link0 != nil {
+		if err := handle0.LinkDel(*link0); err != nil {
+			return false, err
+		}
+	}
+	if link1 != nil {
+		if err := handle1.LinkDel(*link1); err != nil {
+			return false, err
+		}
+	}
+
+	return false, nil
+}
+
+//interfaceUpOrDel removes the given interface if it's DOWN.  If the interface exists and is UP, it is returned
+func interfaceUpOrDelUnsafe(ethName string, handle *netlink.Handle) (*netlink.Link, error) {
+	link, err := handle.LinkByName(ethName)
+	if err == nil {
+		//if the link is not up
+		if link.Attrs().OperState != netlink.OperUp {
+			//delete
+			if err := handle.LinkDel(link); err != nil {
+				return nil, err
+			}
+		} else {
+			//interface is OK
+			return &link, nil
+		}
+	}
+	return nil, nil
+}
+
+func createVethPairUnsafe(ownHandle *netlink.Handle) (*netlink.Veth, *netlink.Veth, error) {
 	var BASE_NAME string = "cord-veth-peer"
 	name0 := BASE_NAME + "0"
 	name1 := BASE_NAME + "1"
@@ -195,9 +164,20 @@ func createVethPairUnsafe() (*netlink.Veth, *netlink.Veth, error) {
 		}
 	}
 
-	fmt.Println("----- Created -----")
-	fmt.Println(link0)
-	fmt.Println(link1)
-
 	return link0.(*netlink.Veth), link1.(*netlink.Veth), nil
+}
+
+func moveNsUnsafe(iface netlink.Link, ethName string, containerPid int, ownHandle, containerHandle *netlink.Handle) error {
+	//move into the container
+	if err := ownHandle.LinkSetNsPid(iface, containerPid); err != nil {
+		return err
+	}
+	//change names and bring online
+	if err := containerHandle.LinkSetName(iface, ethName); err != nil {
+		return err
+	}
+	if err := containerHandle.LinkSetUp(iface); err != nil {
+		return err
+	}
+	return nil
 }

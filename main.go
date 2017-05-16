@@ -10,6 +10,19 @@ import (
 
 func main() {
 
+	fmt.Println("Try running like this:")
+	fmt.Println("docker run \\")
+	fmt.Println("  -d \\")
+	fmt.Println("  --restart=always \\")
+	fmt.Println("  --pid=host \\")
+	fmt.Println("  --security-opt apparmor:unconfined \\")
+	fmt.Println("  --cap-add=NET_ADMIN \\")
+	fmt.Println("  --cap-add=SYS_ADMIN \\")
+	fmt.Println("  --cap-add=SYS_PTRACE \\")
+	fmt.Println("  -v /var/run/docker.sock:/var/run/docker.sock \\")
+	fmt.Println("  cord-network-manager")
+	fmt.Println()
+
 	//if err := resolver.GetPhysicalInterface(); err != nil {
 	//	panic(err)
 	//}
@@ -50,4 +63,5 @@ func main() {
 	}
 }
 
-// docker run --name=test -d --label=com.opencord.network.graph={\"links\":{\"eth0\":\"UUID-1\"}} alpine sleep 100000
+// docker run --name=vnf-container-1 -d --label=com.opencord.network.graph={\"links\":{\"eth-custom0\":\"UUID-1\"}} --net=none tcpdump sleep 100000
+// docker run --name=vnf-container-2 -d --label=com.opencord.network.graph={\"links\":{\"eth-custom1\":\"UUID-1\"}} --net=none tcpdump sleep 100000
