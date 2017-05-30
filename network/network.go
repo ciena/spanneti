@@ -6,14 +6,17 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/khagerma/cord-networking/network/graph"
+	"github.com/khagerma/cord-networking/network/remote"
 )
 
 //nodeId uniquely identifies a container in the network graph
 
 type network struct {
-	graph    graph
+	graph    *graph.Graph
+	remote   *remote.RemoteManager
 	client   *client.Client
-	eventBus chan LinkID
+	eventBus chan graph.LinkID
 }
 
 func New() *network {
@@ -22,10 +25,12 @@ func New() *network {
 		panic(err)
 	}
 
+	localGraph := graph.New()
 	net := &network{
-		graph:    newGraph(),
+		graph:    localGraph,
+		remote:   remote.New("test_peer", localGraph),
 		client:   client,
-		eventBus: make(chan LinkID),
+		eventBus: make(chan graph.LinkID),
 	}
 	//get the complete current state of the graph
 	net.init()
@@ -45,10 +50,10 @@ func (net *network) init() {
 
 	//this order is intentional, to avoid missing container changes during init
 	//1. - build the current network graph
-	netGraphs := make([]ContainerNetwork, len(containers))
+	netGraphs := make([]graph.ContainerNetwork, len(containers))
 	for i, container := range containers {
-		netGraphs[i] = parseContainerNetwork(container.ID, container.Labels)
-		net.graph.pushContainerChanges(netGraphs[i])
+		netGraphs[i] = graph.ParseContainerNetwork(container.ID, container.Labels)
+		net.graph.PushContainerChanges(netGraphs[i])
 	}
 
 	//2. - start listening for graph changes
@@ -64,8 +69,8 @@ func (net *network) UpdateContainer(containerId string) error {
 		return err
 	}
 
-	containerNet := parseContainerNetwork(container.ID, container.Config.Labels)
-	oldContainerNet := net.graph.pushContainerChanges(containerNet)
+	containerNet := graph.ParseContainerNetwork(container.ID, container.Config.Labels)
+	oldContainerNet := net.graph.PushContainerChanges(containerNet)
 	net.pushContainerEvents(oldContainerNet, containerNet)
 
 	return nil
@@ -73,13 +78,13 @@ func (net *network) UpdateContainer(containerId string) error {
 
 func (net *network) RemoveContainer(containerId string) {
 	//push an empty network
-	oldContainerNet := net.graph.pushContainerChanges(ContainerNetwork{containerId: ContainerID(containerId)})
+	oldContainerNet := net.graph.PushContainerChanges(graph.ContainerNetwork{ContainerId: graph.ContainerID(containerId)})
 	net.pushContainerEvents(oldContainerNet)
 }
 
-func (net *network) pushContainerEvents(containerNets ...ContainerNetwork) {
+func (net *network) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
 	//build a map of all the networks
-	linkIds := make(map[LinkID]bool)
+	linkIds := make(map[graph.LinkID]bool)
 	for _, containerNet := range containerNets {
 		for _, linkId := range containerNet.Links {
 			linkIds[linkId] = true
@@ -91,9 +96,9 @@ func (net *network) pushContainerEvents(containerNets ...ContainerNetwork) {
 	}
 }
 
-func (net *network) pushContainersEvents(containerNets []ContainerNetwork) {
+func (net *network) pushContainersEvents(containerNets []graph.ContainerNetwork) {
 	//build a map of all the networks
-	linkIds := make(map[LinkID]bool)
+	linkIds := make(map[graph.LinkID]bool)
 	for _, containerNet := range containerNets {
 		for _, linkId := range containerNet.Links {
 			linkIds[linkId] = true

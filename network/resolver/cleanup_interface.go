@@ -23,13 +23,10 @@ func DeleteContainerInterface(ethName string, containerPid int) (bool, error) {
 	}
 
 	//if the interface exists
-	link, err := containerHandle.LinkByName(ethName)
-	if err == nil {
+	if link, err := containerHandle.LinkByName(ethName); err == nil {
 		//delete
-		if err := containerHandle.LinkDel(link); err != nil {
-			return false, err
-		}
-		return true, nil
+		err := containerHandle.LinkDel(link)
+		return true, err
 	}
 	return false, nil
 }

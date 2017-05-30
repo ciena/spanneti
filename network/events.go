@@ -3,10 +3,11 @@ package network
 import (
 	"context"
 	"fmt"
+	"github.com/khagerma/cord-networking/network/graph"
 	"github.com/khagerma/cord-networking/network/resolver"
 )
 
-func (net *network) FireEvent(linkId LinkID) {
+func (net *network) FireEvent(linkId graph.LinkID) {
 	net.eventBus <- linkId
 }
 
@@ -16,7 +17,7 @@ func (net *network) listenEvents() {
 		case linkId := <-net.eventBus:
 			fmt.Println("Event for link:", linkId)
 
-			linkMap := net.graph.getRelatedTo(linkId)
+			linkMap := net.graph.GetRelatedTo(linkId)
 
 			//setup if the link exists
 			if err := net.tryCreateContainerLink(linkMap, linkId); err != nil {
@@ -35,28 +36,22 @@ func (net *network) listenEvents() {
 }
 
 //tryCreateContainerLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
-func (net *network) tryCreateContainerLink(linkMap map[ContainerID]ContainerNetwork, linkId LinkID) error {
-	if len(linkMap) == 2 {
-		containerIds := []ContainerID{}
-		ifaces := []string{}
-		for containerId, containerNet := range linkMap {
+func (net *network) tryCreateContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+	if len(nets) == 2 {
+		fmt.Printf("Should link:\n  %s in %s\n  %s in %s\n",
+			nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12],
+			nets[1].GetIfaceFor(linkId), nets[1].ContainerId[0:12])
 
-			containerIds = append(containerIds, containerId)
-			ifaces = append(ifaces, containerNet.getIfaceFor(linkId))
-		}
-
-		fmt.Printf("Should link:\n  %s in %s\n  %s in %s\n", ifaces[0], containerIds[0][0:12], ifaces[1], containerIds[1][0:12])
-
-		pid0, err := net.getContainerPid(containerIds[0])
+		pid0, err := net.getContainerPid(nets[0].ContainerId)
 		if err != nil {
 			return err
 		}
-		pid1, err := net.getContainerPid(containerIds[1])
+		pid1, err := net.getContainerPid(nets[1].ContainerId)
 		if err != nil {
 			return err
 		}
 
-		if err := resolver.SetupLocalContainerLink(ifaces[0], pid0, ifaces[1], pid1); err != nil {
+		if err := resolver.SetupLocalContainerLink(nets[0].GetIfaceFor(linkId), pid0, nets[1].GetIfaceFor(linkId), pid1); err != nil {
 			return err
 		}
 	}
@@ -64,25 +59,34 @@ func (net *network) tryCreateContainerLink(linkMap map[ContainerID]ContainerNetw
 }
 
 //tryCleanupContainerLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
-func (net *network) tryCleanupContainerLink(linkMap map[ContainerID]ContainerNetwork, linkId LinkID) error {
-	if len(linkMap) == 1 {
-		for containerId, containerNet := range linkMap {
-			iface := containerNet.getIfaceFor(linkId)
-			containerPid, err := net.getContainerPid(containerId)
-			if err != nil {
-				return err
-			}
-			if removed, err := resolver.DeleteContainerInterface(iface, containerPid); err != nil {
-				return err
-			} else if removed {
-				fmt.Println("Removing:\n  ", iface, "in", containerId[0:12])
-			}
+func (net *network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+	if len(nets) == 1 {
+		containerPid, err := net.getContainerPid(nets[0].ContainerId)
+		if err != nil {
+			return err
+		}
+		if removed, err := resolver.DeleteContainerInterface(nets[0].GetIfaceFor(linkId), containerPid); err != nil {
+			return err
+		} else if removed {
+			fmt.Println("Removing:\n  ", nets[0].GetIfaceFor(linkId), "in", nets[0].ContainerId[0:12])
 		}
 	}
 	return nil
 }
 
-func (net *network) getContainerPid(containerId ContainerID) (int, error) {
+//tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
+func (net *network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+	if len(nets) == 1 {
+		if setup, err:=net.remote.TryConnect(linkId); err!=nil{
+			fmt.Println(err)
+		}else{
+			fmt.Println("Remote setup?:", setup)
+		}
+	}
+	return nil
+}
+
+func (net *network) getContainerPid(containerId graph.ContainerID) (int, error) {
 	if container, err := net.client.ContainerInspect(context.Background(), string(containerId)); err != nil {
 		return 0, err
 	} else {

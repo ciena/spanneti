@@ -1,28 +1,28 @@
-package network
+package graph
 
 import (
 	"sync"
 )
 
-type graph struct {
+type Graph struct {
 	linkMap      map[LinkID]map[ContainerID]*ContainerNetwork
 	containerMap map[ContainerID]*ContainerNetwork
 	mutex        sync.Mutex
 }
 
-func newGraph() graph {
-	return graph{
+func New() *Graph {
+	return &Graph{
 		linkMap:      make(map[LinkID]map[ContainerID]*ContainerNetwork),
 		containerMap: make(map[ContainerID]*ContainerNetwork),
 	}
 }
 
-func (graph *graph) pushContainerChanges(containerNet ContainerNetwork) (oldContainerNet ContainerNetwork) {
+func (graph *Graph) PushContainerChanges(containerNet ContainerNetwork) (oldContainerNet ContainerNetwork) {
 	graph.mutex.Lock()
 	defer graph.mutex.Unlock()
 
 	//remove old
-	oldContainerNet = graph.removeContainerUnsafe(containerNet.containerId)
+	oldContainerNet = graph.removeContainerUnsafe(containerNet.ContainerId)
 
 	//only add the new container if it has a non-empty containerNet
 	if len(containerNet.Links) > 0 {
@@ -32,7 +32,7 @@ func (graph *graph) pushContainerChanges(containerNet ContainerNetwork) (oldCont
 	return
 }
 
-func (graph *graph) removeContainerUnsafe(containerId ContainerID) ContainerNetwork {
+func (graph *Graph) removeContainerUnsafe(containerId ContainerID) ContainerNetwork {
 	if oldContainerNet, have := graph.containerMap[containerId]; have {
 		//remove old netGraph from container map
 		delete(graph.containerMap, containerId)
@@ -47,13 +47,13 @@ func (graph *graph) removeContainerUnsafe(containerId ContainerID) ContainerNetw
 		}
 		return *oldContainerNet
 	} else {
-		return ContainerNetwork{containerId: containerId}
+		return getEmptyContainerNetwork(containerId)
 	}
 }
 
-func (graph *graph) addContainerUnsafe(containerNet ContainerNetwork) {
+func (graph *Graph) addContainerUnsafe(containerNet ContainerNetwork) {
 	//add netGraph to the container map
-	graph.containerMap[containerNet.containerId] = &containerNet
+	graph.containerMap[containerNet.ContainerId] = &containerNet
 
 	for _, linkId := range containerNet.Links {
 		//create a link-specific container map if one doesn't exist
@@ -62,17 +62,17 @@ func (graph *graph) addContainerUnsafe(containerNet ContainerNetwork) {
 		}
 
 		//add netGraph to the container map
-		graph.linkMap[linkId][containerNet.containerId] = &containerNet
+		graph.linkMap[linkId][containerNet.ContainerId] = &containerNet
 	}
 }
 
-func (graph *graph) getRelatedTo(linkId LinkID) map[ContainerID]ContainerNetwork {
+func (graph *Graph) GetRelatedTo(linkId LinkID) []ContainerNetwork {
 	graph.mutex.Lock()
 	defer graph.mutex.Unlock()
 
-	relatedContainerNets := make(map[ContainerID]ContainerNetwork)
-	for containerId, containerNet := range graph.linkMap[linkId] {
-		relatedContainerNets[containerId] = *containerNet
+	relatedContainerNets := make([]ContainerNetwork, 0, len(graph.linkMap[linkId]))
+	for _, containerNet := range graph.linkMap[linkId] {
+		relatedContainerNets = append(relatedContainerNets, *containerNet)
 	}
 	return relatedContainerNets
 }

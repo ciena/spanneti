@@ -43,7 +43,7 @@ func main() {
 		select {
 		case event := <-events:
 
-			fmt.Println(event.Type, event.Action, string(event.Actor.ID[0:12]), event.From, event.Status, event.Actor.Attributes)
+			fmt.Println("Docker event:", event.Action, event.Type, string(event.Actor.ID[0:12]))
 
 			if event.Type == "container" && event.Action == "start" {
 				if err := net.UpdateContainer(event.Actor.ID); err != nil {
@@ -55,13 +55,8 @@ func main() {
 				net.RemoveContainer(event.Actor.ID)
 			}
 
-			break
 		case err := <-errs:
 			fmt.Println(err)
-			break
 		}
 	}
 }
-
-// docker run --name=vnf-container-1 -d --label=com.opencord.network.graph={\"links\":{\"eth-custom0\":\"UUID-1\"}} --net=none tcpdump sleep 100000
-// docker run --name=vnf-container-2 -d --label=com.opencord.network.graph={\"links\":{\"eth-custom1\":\"UUID-1\"}} --net=none tcpdump sleep 100000
