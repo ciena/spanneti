@@ -10,8 +10,6 @@ import (
 	"github.com/khagerma/cord-networking/network/remote"
 )
 
-//nodeId uniquely identifies a container in the network graph
-
 type network struct {
 	graph    *graph.Graph
 	remote   *remote.RemoteManager
@@ -25,14 +23,11 @@ func New() *network {
 		panic(err)
 	}
 
-	localGraph := graph.New()
 	net := &network{
-		graph:    localGraph,
-		remote:   remote.New("test_peer", localGraph),
+		graph:    graph.New(),
 		client:   client,
 		eventBus: make(chan graph.LinkID),
 	}
-	//get the complete current state of the graph
 	net.init()
 
 	return net
@@ -56,10 +51,13 @@ func (net *network) init() {
 		net.graph.PushContainerChanges(netGraphs[i])
 	}
 
-	//2. - start listening for graph changes
+	//2. - start serving requests
+	net.remote = remote.New("test_peer", net.graph)
+
+	//3. - start listening for graph changes
 	go net.listenEvents()
 
-	//3. - fire all the events for the now-ready network graph
+	//4. - fire all the events for the now-ready network graph
 	net.pushContainersEvents(netGraphs)
 }
 

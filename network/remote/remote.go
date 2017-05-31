@@ -3,14 +3,16 @@ package remote
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/khagerma/cord-networking/network/graph"
 	"github.com/khagerma/cord-networking/network/resolver"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"sync"
-	"fmt"
+	"time"
 )
 
 type RemoteManager struct {
@@ -32,7 +34,7 @@ func New(peerId string, graph *graph.Graph) *RemoteManager {
 }
 
 func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
-	for _, peerIp := range []string{"192.168.33.10", "192.168.33.11"} {
+	for _, peerIp := range []string{"localhost:8080", "localhost:8081"} {
 		proposal := linkProposal{LinkId: linkId}
 		for retrySetup := true; retrySetup; {
 
@@ -49,10 +51,19 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 				return false, err
 			}
 
-			client := http.Client{}
+			client := http.Client{
+				Timeout: 300 * time.Millisecond,
+				Transport: &http.Transport{
+					Dial: (&net.Dialer{
+						Timeout: 100 * time.Millisecond,
+					}).Dial,
+				},
+			}
+			fmt.Println(request.URL, string(data))
 			resp, err := client.Do(request)
 			if err != nil {
-				return false, err
+				fmt.Println(err)
+				continue
 			}
 
 			if resp.StatusCode == http.StatusNotFound {
@@ -67,6 +78,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 				if err != nil {
 					return false, err
 				}
+				fmt.Println(resp.Status, string(data))
 
 				var response linkProposalResponse
 				if err := json.Unmarshal(data, &response); err != nil {
@@ -79,7 +91,8 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 					if proposal.TunnelId == nil {
 						//if was unknown before
 						//verify ID is ok
-
+						fmt.Println("ID to verify: ", response.TryTunnelId)
+						response.TunnelId = response.TryTunnelId
 					}
 					//requested ID is setup on remote
 					//set up locally
@@ -92,7 +105,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 				proposal.TunnelId = response.TryTunnelId
 
 				//setup with id
-				return true, nil
+				continue
 			}
 		}
 	}
@@ -108,8 +121,13 @@ func (man *RemoteManager) runServer() {
 	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
 	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.deleteLinkHandler).Methods(http.MethodDelete)
 
-	http.Handle("/", r)
-	http.ListenAndServe("localhost:8080", http.DefaultServeMux)
+	srv := &http.Server{
+		ReadTimeout:  500 * time.Millisecond,
+		WriteTimeout: 500 * time.Millisecond,
+		Handler:      r,
+		Addr:         "localhost:8080",
+	}
+	srv.ListenAndServe()
 }
 
 func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
@@ -122,6 +140,7 @@ func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
 		peer := &remotePeer{
 			peerId:    peerId,
 			tunnelFor: make(map[graph.LinkID]tunnelID),
+			linkFor:   make(map[tunnelID]graph.LinkID),
 		}
 		man.peer[peerId] = peer
 		return peer

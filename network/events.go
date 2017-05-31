@@ -31,6 +31,12 @@ func (net *network) listenEvents() {
 				break
 			}
 
+			//try to setup connection to container
+			if err := net.tryCreateRemoteLink(linkMap, linkId); err != nil {
+				fmt.Println(err)
+				break
+			}
+
 		}
 	}
 }
