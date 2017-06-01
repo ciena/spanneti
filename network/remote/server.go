@@ -50,9 +50,49 @@ func (man *RemoteManager) deleteLinksHandler(w http.ResponseWriter, r *http.Requ
 
 }
 
+type getResponse struct {
+	TunnelId tunnelID `json:"tunnel-id"`
+	Setup    bool     `json:"setup"`
+}
+
+func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request) {
+	linkId := graph.LinkID(mux.Vars(r)["linkId"])
+
+	if related := man.graph.GetRelatedTo(linkId); len(related) != 1 {
+		//linkId not found, or not available
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	peer := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	peer.mutex.Lock()
+	defer peer.mutex.Unlock()
+
+	response := getResponse{}
+
+	//if this side already has a tunnel set up
+	if tunnelId, allocated := peer.tunnelFor[linkId]; allocated {
+		//return existing
+		response.TunnelId = tunnelId
+		response.Setup = true
+	} else {
+		//if undefined, propose lowest available tunnelId
+		response.TunnelId = *peer.nextAvailableTunnelId(0)
+		response.Setup = false
+	}
+
+	if data, err := json.Marshal(response); err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
+}
+
 type linkProposal struct {
-	LinkId   graph.LinkID `json:"link-id"`
-	TunnelId *tunnelID    `json:"tunnel-id,omitempty"`
+	TunnelId tunnelID `json:"tunnel-id"`
 	//if a tunnelId is given, we must respond with the same tunnelId (signalling setup complete), or an unused tunnelId
 	//if a tunnelId is not given, we must respond with the current tunnelId (if defined), else an empty tunnelId
 }
@@ -64,6 +104,8 @@ type linkProposalResponse struct {
 }
 
 func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Request) {
+	linkId := graph.LinkID(graph.LinkID(mux.Vars(r)["linkId"]))
+
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		fmt.Println(err)
@@ -78,18 +120,13 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if proposalRequest.LinkId != graph.LinkID(mux.Vars(r)["linkId"]) {
-		fmt.Println("LinkID in request does not match LinkID in URL")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
 
 	proposal := linkProposalResponse{
 		linkProposal: proposalRequest,
 		status:       http.StatusInternalServerError,
 	}
 
-	if related := man.graph.GetRelatedTo(proposal.LinkId); len(related) != 1 {
+	if related := man.graph.GetRelatedTo(linkId); len(related) != 1 {
 		//linkId not found, or not available
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -99,36 +136,22 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 	peer.mutex.Lock()
 	defer peer.mutex.Unlock()
 
-	//if the other side is not proposing an ID
-	if proposal.TunnelId == nil {
-		//if this side already has a tunnel set up
-		if tunnelId, allocated := peer.tunnelFor[proposal.LinkId]; allocated {
-			//return existing
-			proposal.TunnelId = &tunnelId
-			proposal.status = http.StatusCreated
-		} else {
-			//if undefined, propose lowest available tunnelId
-			proposal.TryTunnelId = peer.nextAvailableTunnelId(0)
-			proposal.status = http.StatusOK
-		}
-	} else {
-		if linkId, allocated := peer.linkFor[*proposal.TunnelId]; allocated {
-			if linkId == proposal.LinkId {
-				//already setup, nothing to do
-				//accept proposal
-				proposal.status = http.StatusCreated
-			} else {
-				//tunnelId in use, return next available tunnelId
-				proposal.TryTunnelId = peer.nextAvailableTunnelId(*proposal.TunnelId)
-				proposal.TunnelId = nil
-				proposal.status = http.StatusConflict
-			}
-		} else {
-			//if unallocated, allocate
-			peer.allocate(proposal.LinkId, *proposal.TunnelId)
+	//if this side already has a tunnel set up
+	if currentLinkId, allocated := peer.linkFor[proposalRequest.TunnelId]; allocated {
+		if currentLinkId == linkId {
+			//already setup, nothing to do
 			//accept proposal
 			proposal.status = http.StatusCreated
+		} else {
+			//tunnelId in use, return next available tunnelId
+			proposal.TryTunnelId = peer.nextAvailableTunnelId(proposalRequest.TunnelId)
+			proposal.status = http.StatusConflict
 		}
+	} else {
+		//if unallocated, allocate
+		peer.allocate(linkId, proposalRequest.TunnelId)
+		//accept proposal
+		proposal.status = http.StatusCreated
 	}
 
 	if data, err := json.Marshal(proposal); err != nil {
