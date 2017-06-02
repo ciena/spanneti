@@ -7,7 +7,26 @@ import (
 	"github.com/khagerma/cord-networking/network/graph"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
+
+func (man *RemoteManager) runServer() {
+	r := mux.NewRouter()
+	r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
+	r.HandleFunc("/peer/{peerId}/link/", man.updateLinksHandler).Methods(http.MethodPut)
+	r.HandleFunc("/peer/{peerId}/link/", man.deleteLinksHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.getLinkHandler).Methods(http.MethodGet)
+	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
+	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.deleteLinkHandler).Methods(http.MethodDelete)
+
+	srv := &http.Server{
+		ReadTimeout:  100 * time.Millisecond,
+		WriteTimeout: 100 * time.Millisecond,
+		Handler:      r,
+		Addr:         "localhost:8080",
+	}
+	srv.ListenAndServe()
+}
 
 type linkResponse struct {
 	LinkId   graph.LinkID `json:"link-id"`
@@ -165,9 +184,19 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Request) {
+	linkId := graph.LinkID(mux.Vars(r)["linkId"])
+
 	peer := man.getPeer(peerID(mux.Vars(r)["peerId"]))
 	peer.mutex.Lock()
 	defer peer.mutex.Unlock()
+
+	if err := peer.deallocate(linkId); err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 type peerLinkID struct {

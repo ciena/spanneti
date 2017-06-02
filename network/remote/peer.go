@@ -1,9 +1,10 @@
 package remote
 
 import (
+	"fmt"
 	"github.com/khagerma/cord-networking/network/graph"
-	"sync"
 	"github.com/khagerma/cord-networking/network/resolver"
+	"sync"
 )
 
 type peerID string
@@ -18,20 +19,40 @@ type remotePeer struct {
 	mutex     sync.Mutex
 }
 
-func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) {
+func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
 	//cleanup old relationships
 	if oldTunnelId, have := peer.tunnelFor[linkId]; have {
+		if oldTunnelId == tunnelId {
+			fmt.Println("Alreay set up:", tunnelId, "at", linkId, "to", peer.peerId)
+			return nil
+		}
 		delete(peer.linkFor, oldTunnelId)
-	}
-	if oldLinkId, have := peer.linkFor[tunnelId]; have {
-		delete(peer.tunnelFor, oldLinkId)
+		delete(peer.tunnelFor, linkId)
+		if err := resolver.TeardownRemoteContainerLink(string(peer.peerId), linkId); err != nil {
+			return err
+		}
 	}
 
 	//map new relationship
 	peer.tunnelFor[linkId] = tunnelId
 	peer.linkFor[tunnelId] = linkId
 
-	resolver.SetupRemoteContainerLink(string(peer.peerId), linkId, uint64(tunnelId))
+	err := resolver.SetupRemoteContainerLink(string(peer.peerId), linkId, uint64(tunnelId))
+	if err != nil {
+		delete(peer.tunnelFor, linkId)
+		delete(peer.linkFor, tunnelId)
+	}
+	return err
+}
+
+func (peer *remotePeer) deallocate(linkId graph.LinkID) error {
+	//cleanup old relationships
+	if tunnelId, have := peer.tunnelFor[linkId]; have {
+		delete(peer.linkFor, tunnelId)
+		delete(peer.tunnelFor, linkId)
+		return resolver.TeardownRemoteContainerLink(string(peer.peerId), linkId)
+	}
+	return nil
 }
 
 func (peer *remotePeer) nextAvailableTunnelId(after tunnelID) *tunnelID {

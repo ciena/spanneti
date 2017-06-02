@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gorilla/mux"
 	"github.com/khagerma/cord-networking/network/graph"
-	"github.com/khagerma/cord-networking/network/resolver"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -34,36 +32,85 @@ func New(peerId string, graph *graph.Graph) *RemoteManager {
 	return man
 }
 
+//in order:
+//get availability from remote
+//provision on remote
+//provision locally
 func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
-
 	peerIps, possibilities := man.getPossibilities(linkId)
 
 	if len(possibilities) != 1 {
-		fmt.Println("There are not exactly two containers with the same link ID.  Ignoring...")
+		fmt.Println("Unable to find two containers with the same link ID.  Ignoring...")
 		return false, nil
 	}
 
 	peerIp := peerIps[0]
 	response := possibilities[0]
-	//
-	// ensure the suggested tunnelId is valid on our side
-	//
 
-	proposal := &linkProposal{TunnelId: response.TunnelId}
+	tunnelId := response.TunnelId
 
-	for setup := response.Setup; !setup; {
-		if isSetup, err := man.requestSetup(linkId, proposal, peerIp); err != nil {
-			return false, err
+	localSetup := false
+	setup := response.Setup
+
+	for !localSetup {
+		for !setup {
+			//
+			// ensure the suggested tunnelId is valid on our side
+			//
+
+			var err error
+			setup, tunnelId, err = man.requestSetup(peerIp, linkId, tunnelId)
+			if err != nil {
+				return false, err
+			}
+		}
+
+		//now that it's setup remotely, try to setup locally
+
+		peer := man.getPeer(peerID(peerIp))
+		peer.mutex.Lock()
+		if currentLinkId, have := peer.linkFor[tunnelId]; !have || currentLinkId == linkId {
+			err := peer.allocate(linkId, tunnelId)
+			peer.mutex.Unlock()
+			if err != nil {
+				return false, err
+			}
+			localSetup = true
 		} else {
-			setup = isSetup
+			//go to next available tunnel ID
+			if tunnel := peer.nextAvailableTunnelId(tunnelId); tunnel == nil {
+				return false, errors.New("Out of tunnelIds?")
+			} else {
+				tunnelId = *tunnel
+			}
+			peer.mutex.Unlock()
+
+			if _, err := man.requestDelete(peerIp, linkId); err != nil {
+				return false, err
+			}
+			setup = false
 		}
 	}
-
-	//set up locally
-	if err := resolver.SetupRemoteContainerLink(peerIp, linkId, uint64(response.TunnelId)); err != nil {
-		return false, err
-	}
 	return true, nil
+}
+
+func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
+	deleted = false
+	for _, peerIp := range []string{"localhost:8080", "localhost:8081"} {
+		peer := man.getPeer(peerID(peerIp))
+		peer.mutex.Lock()
+		if err := peer.deallocate(linkId); err != nil {
+			fmt.Println(err)
+		}
+		peer.mutex.Unlock()
+
+		if wasDeleted, err := man.requestDelete(peerIp, linkId); err != nil {
+			fmt.Println(err)
+		} else if wasDeleted {
+			deleted = true
+		}
+	}
+	return
 }
 
 func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]string, []getResponse) {
@@ -83,12 +130,14 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]string, []get
 			http.MethodGet,
 			"http://"+peerIp+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 			nil)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
 
-		fmt.Println(request.URL)
 		resp, err := client.Do(request)
 		if err != nil {
 			//if fails, just go to next
-			fmt.Println(err)
 			continue
 		}
 
@@ -102,6 +151,7 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]string, []get
 			var response getResponse
 			if err := json.Unmarshal(data, &response); err != nil {
 				//if fails, just go to next
+				fmt.Println(err)
 				continue
 			}
 
@@ -113,7 +163,7 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]string, []get
 	return peerIps, possibilities
 }
 
-func (man *RemoteManager) requestSetup(linkId graph.LinkID, proposal *linkProposal, peerIp string) (bool, error) {
+func (man *RemoteManager) requestSetup(peerIp string, linkId graph.LinkID, tunnelId tunnelID) (bool, tunnelID, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -123,9 +173,9 @@ func (man *RemoteManager) requestSetup(linkId graph.LinkID, proposal *linkPropos
 		},
 	}
 
-	data, err := json.Marshal(proposal)
+	data, err := json.Marshal(&linkProposal{TunnelId: tunnelId})
 	if err != nil {
-		return false, err
+		return false, tunnelId, err
 	}
 
 	request, err := http.NewRequest(
@@ -133,70 +183,74 @@ func (man *RemoteManager) requestSetup(linkId graph.LinkID, proposal *linkPropos
 		"http://"+peerIp+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		bytes.NewReader(data))
 	if err != nil {
-		return false, err
+		return false, tunnelId, err
 	}
 
-	fmt.Println(request.URL, string(data))
 	resp, err := client.Do(request)
 	if err != nil {
-		fmt.Println(err)
-		return false, nil
+		return false, tunnelId, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		//LinkID does not exist on this peer, linkup failed
-		return false, nil
+		return false, tunnelId, errors.New("LinkID does not exist on remote peer, linkup failed.")
 	}
 
 	data, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return false, err
+		return false, tunnelId, err
 	}
 	fmt.Println(resp.Status, string(data))
 
 	var response linkProposalResponse
 	if err := json.Unmarshal(data, &response); err != nil {
-		return false, err
+		return false, tunnelId, err
 	}
 
 	if resp.StatusCode == http.StatusCreated {
-
-		//setup local connection
-		fmt.Println("ID to verify:", proposal.TunnelId)
-
-		//done
-		return true, nil
+		// yay!  created!
+		return true, tunnelId, nil
 
 	} else if resp.StatusCode == http.StatusConflict {
 		if response.TryTunnelId == nil {
-			return false, errors.New("Status was 409 CONFLICT, but try-tunnel-id was not defined. Out of tunnel IDs?")
+			return false, 0, errors.New("Status was 409 CONFLICT, but try-tunnel-id was not defined. Out of tunnel IDs?")
 		}
 
-		proposal.TunnelId = *response.TryTunnelId
-
 		//setup with id
-		return false, nil
+		return false, *response.TryTunnelId, nil
 	}
 
-	return false, errors.New("Unexpected status code:" + resp.Status)
+	return false, tunnelId, errors.New("Unexpected status code:" + resp.Status)
 }
 
-func (man *RemoteManager) runServer() {
-	r := mux.NewRouter()
-	r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
-	r.HandleFunc("/peer/{peerId}/link/", man.updateLinksHandler).Methods(http.MethodPut)
-	r.HandleFunc("/peer/{peerId}/link/", man.deleteLinksHandler).Methods(http.MethodDelete)
-	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.getLinkHandler).Methods(http.MethodGet)
-	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
-	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.deleteLinkHandler).Methods(http.MethodDelete)
-
-	srv := &http.Server{
-		ReadTimeout:  500 * time.Millisecond,
-		WriteTimeout: 500 * time.Millisecond,
-		Handler:      r,
-		Addr:         "localhost:8080",
+func (man *RemoteManager) requestDelete(peerIp string, linkId graph.LinkID) (bool, error) {
+	client := http.Client{
+		Timeout: 300 * time.Millisecond,
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout: 100 * time.Millisecond,
+			}).Dial,
+		},
 	}
-	srv.ListenAndServe()
+
+	request, err := http.NewRequest(
+		http.MethodDelete,
+		"http://"+peerIp+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		nil)
+	if err != nil {
+		return false, err
+	}
+
+	fmt.Println(request.URL)
+	resp, err := client.Do(request)
+	if err != nil {
+		return false, err
+	}
+
+	fmt.Println(resp.Status)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return false, errors.New("Unexpected return code:" + resp.Status)
+	}
+	return resp.StatusCode == http.StatusOK, nil
 }
 
 func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {

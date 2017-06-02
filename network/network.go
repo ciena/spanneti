@@ -52,7 +52,7 @@ func (net *network) init() {
 	}
 
 	//2. - start serving requests
-	net.remote = remote.New("test_peer", net.graph)
+	net.remote = remote.New("temp_self_ID", net.graph)
 
 	//3. - start listening for graph changes
 	go net.listenEvents()

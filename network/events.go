@@ -37,6 +37,11 @@ func (net *network) listenEvents() {
 				break
 			}
 
+			if err := net.tryCleanupRemoteLink(linkMap, linkId); err != nil {
+				fmt.Println(err)
+				break
+			}
+
 		}
 	}
 }
@@ -83,11 +88,20 @@ func (net *network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkI
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
 func (net *network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) == 1 {
-		if setup, err:=net.remote.TryConnect(linkId); err!=nil{
+		if setup, err := net.remote.TryConnect(linkId); err != nil {
 			fmt.Println(err)
-		}else{
+		} else {
 			fmt.Println("Remote setup?:", setup)
 		}
+	}
+	return nil
+}
+
+//tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
+func (net *network) tryCleanupRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+	if len(nets) != 1 {
+		deleted := net.remote.TryCleanup(linkId)
+		fmt.Println("Remote cleaned up?:", deleted)
 	}
 	return nil
 }
