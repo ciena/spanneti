@@ -43,7 +43,7 @@ func main() {
 		select {
 		case event := <-events:
 
-			fmt.Println("Docker event:", event.Action, event.Type, string(event.Actor.ID[0:12]))
+			fmt.Println("Docker event:", event.Action, event.Type, string(event.Actor.ID))
 
 			if event.Type == "container" && event.Action == "start" {
 				if err := net.UpdateContainer(event.Actor.ID); err != nil {
@@ -56,7 +56,7 @@ func main() {
 			}
 
 		case err := <-errs:
-			fmt.Println(err)
+			panic(err)
 		}
 	}
 }

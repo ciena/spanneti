@@ -12,6 +12,7 @@ import (
 
 func (man *RemoteManager) runServer() {
 	r := mux.NewRouter()
+	r.HandleFunc("/peer/{peerId}/resync", man.resyncHandler).Methods(http.MethodPost)
 	r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{peerId}/link/", man.updateLinksHandler).Methods(http.MethodPut)
 	r.HandleFunc("/peer/{peerId}/link/", man.deleteLinksHandler).Methods(http.MethodDelete)
@@ -31,6 +32,10 @@ func (man *RemoteManager) runServer() {
 type linkResponse struct {
 	LinkId   graph.LinkID `json:"link-id"`
 	TunnelId *tunnelID    `json:"tunnel-id,omitempty"`
+}
+
+func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) {
+	//var links []graph.LinkID
 }
 
 func (man *RemoteManager) listLinksHandler(w http.ResponseWriter, r *http.Request) {

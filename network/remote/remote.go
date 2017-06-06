@@ -96,7 +96,12 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 
 func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 	deleted = false
-	for _, peerIp := range []string{"localhost:8080", "localhost:8081"} {
+	for _, peerIp := range []string{"192.168.33.10:8080", "192.168.33.11:8080"} {
+		if man.peerId == peerID(peerIp) {
+			//do not connect to self
+			continue
+		}
+
 		peer := man.getPeer(peerID(peerIp))
 		peer.mutex.Lock()
 		if err := peer.deallocate(linkId); err != nil {
@@ -125,7 +130,12 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]string, []get
 
 	peerIps := []string{}
 	possibilities := []getResponse{}
-	for _, peerIp := range []string{"localhost:8080", "localhost:8081"} {
+	for _, peerIp := range []string{"192.168.33.10:8080", "192.168.33.11:8080", "10.0.2.15:8080", ""} {
+		if man.peerId == peerID(peerIp) {
+			//do not connect to self
+			continue
+		}
+
 		request, err := http.NewRequest(
 			http.MethodGet,
 			"http://"+peerIp+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
@@ -240,7 +250,7 @@ func (man *RemoteManager) requestDelete(peerIp string, linkId graph.LinkID) (boo
 		return false, err
 	}
 
-	fmt.Println(request.URL)
+	fmt.Println(request.Method, request.URL)
 	resp, err := client.Do(request)
 	if err != nil {
 		return false, err
