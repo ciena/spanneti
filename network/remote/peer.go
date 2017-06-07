@@ -63,3 +63,20 @@ func (peer *remotePeer) nextAvailableTunnelId(after tunnelID) *tunnelID {
 	}
 	return nil
 }
+
+func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
+	man.mutex.Lock()
+	defer man.mutex.Unlock()
+
+	if peer, have := man.peer[peerId]; have {
+		return peer
+	} else {
+		peer := &remotePeer{
+			peerId:    peerId,
+			tunnelFor: make(map[graph.LinkID]tunnelID),
+			linkFor:   make(map[tunnelID]graph.LinkID),
+		}
+		man.peer[peerId] = peer
+		return peer
+	}
+}

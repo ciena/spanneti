@@ -52,7 +52,7 @@ func (net *network) init() {
 	}
 
 	//2. - start serving requests
-	net.remote = remote.New("192.168.33.10:8080", net.graph)
+	net.remote = remote.New("192.168.33.10:8080", net.graph, net.eventBus)
 
 	//3. - start listening for graph changes
 	go net.listenEvents()

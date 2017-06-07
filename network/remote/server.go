@@ -35,7 +35,28 @@ type linkResponse struct {
 }
 
 func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) {
-	//var links []graph.LinkID
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		fmt.Println(http.StatusBadRequest)
+		return
+	}
+
+	var links []graph.LinkID
+	err = json.Unmarshal(data, &links)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	//spin off process to run the events
+	go func() {
+		for _, link := range links {
+			man.eventBus <- link
+		}
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (man *RemoteManager) listLinksHandler(w http.ResponseWriter, r *http.Request) {
