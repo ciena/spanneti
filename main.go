@@ -20,7 +20,7 @@ func main() {
 	fmt.Println("  --cap-add=SYS_ADMIN \\")
 	fmt.Println("  --cap-add=SYS_PTRACE \\")
 	fmt.Println("  -v /var/run/docker.sock:/var/run/docker.sock \\")
-	fmt.Println("  cord-network-manager")
+	fmt.Println("  spanneti")
 	fmt.Println()
 
 	//if err := resolver.GetPhysicalInterface(); err != nil {

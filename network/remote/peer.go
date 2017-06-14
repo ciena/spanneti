@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/khagerma/cord-networking/network/graph"
 	"github.com/khagerma/cord-networking/network/resolver"
+	"net"
 	"sync"
 )
 
@@ -11,6 +12,7 @@ type peerID string
 type tunnelID uint64
 
 const MAX_TUNNEL_ID = 16777216
+const DNS_ENTRY = "spanneti.default.svc.cluster.local"
 
 type remotePeer struct {
 	peerId    peerID
@@ -79,4 +81,20 @@ func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
 		man.peer[peerId] = peer
 		return peer
 	}
+}
+
+func lookupPeers() ([]peerID, error) {
+	ips, err := net.LookupIP(DNS_ENTRY)
+	if err != nil {
+		return []peerID{}, err
+	}
+
+	peers := []peerID{}
+	for _, ip := range ips {
+		if ip.To4() != nil {
+			peers = append(peers, peerID(ip.String()))
+		}
+	}
+
+	return peers, nil
 }

@@ -1,5 +1,5 @@
 FROM alpine:3.5
 
-COPY build/cord-network-manager /cord/network-manager
+COPY build/spanneti /cord/spanneti
 
-CMD /cord/network-manager
+CMD /cord/spanneti

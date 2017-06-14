@@ -24,7 +24,7 @@ func (man *RemoteManager) runServer() {
 		ReadTimeout:  100 * time.Millisecond,
 		WriteTimeout: 100 * time.Millisecond,
 		Handler:      r,
-		Addr:         "localhost:8080",
+		Addr:         string(man.peerId)+":8080",
 	}
 	srv.ListenAndServe()
 }

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/khagerma/cord-networking/network/graph"
+	"net"
 	"sync"
+	"time"
 )
 
 type RemoteManager struct {
@@ -17,9 +19,9 @@ type RemoteManager struct {
 	outOfSync   map[peerID]map[graph.LinkID]bool
 }
 
-func New(peerId string, network *graph.Graph, ch chan<- graph.LinkID) *RemoteManager {
+func New(network *graph.Graph, ch chan<- graph.LinkID) *RemoteManager {
 	man := &RemoteManager{
-		peerId:    peerID(peerId),
+		peerId:    determineOwnId(),
 		peer:      make(map[peerID]*remotePeer),
 		graph:     network,
 		eventBus:  ch,
@@ -28,6 +30,43 @@ func New(peerId string, network *graph.Graph, ch chan<- graph.LinkID) *RemoteMan
 
 	go man.runServer()
 	return man
+}
+
+func determineOwnId() peerID {
+	var ownId peerID
+	for ownId == "" {
+		fmt.Print("Determining own IP... ")
+
+		peerIps, err := lookupPeers()
+		if err != nil {
+			panic(err)
+		}
+		ifaces, err := net.InterfaceAddrs()
+		if err != nil {
+			panic(err)
+		}
+
+		//shared IPv4 address is ours
+		for _, iface := range ifaces {
+			if ipnet, ok := iface.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					for _, peerIp := range peerIps {
+						if peerIp == peerID(ipnet.IP.String()) {
+							ownId = peerIp
+						}
+					}
+				}
+			}
+		}
+
+		if ownId == "" {
+			fmt.Println("Unknown, will retry")
+			time.Sleep(time.Second)
+		} else {
+			fmt.Println(ownId)
+		}
+	}
+	return ownId
 }
 
 //in order:
@@ -59,27 +98,27 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 			var err error
 			setup, tunnelId, err = man.requestSetup(peerIp, linkId, tunnelId)
 			if err != nil {
-				man.unableToSync(peerID(peerIp), linkId)
+				man.unableToSync(peerIp, linkId)
 				return false, err
 			}
 		}
 
 		//now that it's setup remotely, try to setup locally
 
-		peer := man.getPeer(peerID(peerIp))
+		peer := man.getPeer(peerIp)
 		peer.mutex.Lock()
 		if currentLinkId, have := peer.linkFor[tunnelId]; !have || currentLinkId == linkId {
 			err := peer.allocate(linkId, tunnelId)
 			peer.mutex.Unlock()
 			if err != nil {
-				man.unableToSync(peerID(peerIp), linkId)
+				man.unableToSync(peerIp, linkId)
 				return false, err
 			}
 			localSetup = true
 		} else {
 			//go to next available tunnel ID
 			if tunnel := peer.nextAvailableTunnelId(tunnelId); tunnel == nil {
-				man.unableToSync(peerID(peerIp), linkId)
+				man.unableToSync(peerIp, linkId)
 				return false, errors.New("Out of tunnelIds?")
 			} else {
 				tunnelId = *tunnel
@@ -87,7 +126,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 			peer.mutex.Unlock()
 
 			if _, err := man.requestDelete(peerIp, linkId); err != nil {
-				man.unableToSync(peerID(peerIp), linkId)
+				man.unableToSync(peerIp, linkId)
 				return false, err
 			}
 			setup = false
@@ -98,21 +137,27 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 
 func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 	deleted = false
-	for _, peerIp := range []string{"192.168.33.10:8080", "192.168.33.11:8080"} {
-		if man.peerId == peerID(peerIp) {
+
+	peers, err := lookupPeers()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, peerId := range peers {
+		if man.peerId == peerId {
 			//do not connect to self
 			continue
 		}
 
-		peer := man.getPeer(peerID(peerIp))
+		peer := man.getPeer(peerId)
 		peer.mutex.Lock()
 		if err := peer.deallocate(linkId); err != nil {
 			fmt.Println(err)
 		}
 		peer.mutex.Unlock()
 
-		if wasDeleted, err := man.requestDelete(peerIp, linkId); err != nil {
-			man.unableToSync(peerID(peerIp), linkId)
+		if wasDeleted, err := man.requestDelete(peerId, linkId); err != nil {
+			man.unableToSync(peerId, linkId)
 			fmt.Println(err)
 		} else if wasDeleted {
 			deleted = true
@@ -121,23 +166,28 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 	return
 }
 
-func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]string, []getResponse) {
-	peerIps := []string{}
-	possibilities := []getResponse{}
-	for _, peerIp := range []string{"192.168.33.10:8080", "192.168.33.11:8080", "10.0.2.15:8080", ""} {
+func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peerID, []getResponse) {
+	var peerIps []peerID
+	var possibilities []getResponse
 
-		if man.peerId == peerID(peerIp) {
+	peers, err := lookupPeers()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, peerId := range peers {
+		if man.peerId == peerId {
 			//do not connect to self
 			continue
 		}
 
-		response, err := man.requestState(peerID(peerIp), linkId)
+		response, err := man.requestState(peerId, linkId)
 		if err != nil {
-			man.unableToSync(peerID(peerIp), linkId)
+			man.unableToSync(peerId, linkId)
 			continue
 		}
 
-		peerIps = append(peerIps, peerIp)
+		peerIps = append(peerIps, peerId)
 		possibilities = append(possibilities, response)
 	}
 

@@ -1,14 +1,8 @@
 package remote
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/khagerma/cord-networking/network/graph"
-	"net"
-	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -63,38 +57,5 @@ func (man *RemoteManager) resyncProcess() {
 		}
 		man.resyncMutex.Unlock()
 	}
-}
-
-func (man *RemoteManager) tryResyncUnsafe(peerId peerID, linkIds []graph.LinkID) error {
-	client := http.Client{
-		Timeout: 300 * time.Millisecond,
-		Transport: &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout: 100 * time.Millisecond,
-			}).Dial,
-		},
-	}
-
-	data, err := json.Marshal(&linkIds)
-	if err != nil {
-		return err
-	}
-
-	request, err := http.NewRequest(
-		http.MethodPost,
-		"http://"+fmt.Sprint(peerId)+"/peer/"+url.PathEscape(string(man.peerId))+"/resync",
-		bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-
-	resp, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK || resp.StatusCode != http.StatusAccepted {
-		return errors.New("Unexpected response code: " + resp.Status)
-	}
-	return nil
+	fmt.Println("All nodes back in sync.")
 }

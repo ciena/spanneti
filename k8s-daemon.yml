@@ -1,0 +1,39 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: spanneti
+spec:
+  template:
+    metadata:
+      labels:
+        app: spanneti
+    spec:
+      hostPID: true
+      containers:
+        - securityContext:
+            privileged: true
+          image: spanneti:latest
+          # remove this once a proper repo is set up
+          imagePullPolicy: IfNotPresent
+          name: spanneti
+          volumeMounts:
+            - name: docker
+              mountPath: /var/run/docker.sock
+      volumes:
+        - name: docker
+          hostPath:
+            path: /var/run/docker.sock
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: spanneti
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: http
+    port: 8080
+  selector:
+    app: spanneti

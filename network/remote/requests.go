@@ -26,7 +26,7 @@ func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getR
 
 	request, err := http.NewRequest(
 		http.MethodGet,
-		"http://"+fmt.Sprint(peerIp)+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		"http://"+fmt.Sprint(peerIp)+":8080/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
 		return getResponse{}, err
@@ -57,7 +57,7 @@ func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getR
 }
 
 //requestSetup PUTs a link
-func (man *RemoteManager) requestSetup(peerIp string, linkId graph.LinkID, tunnelId tunnelID) (bool, tunnelID, error) {
+func (man *RemoteManager) requestSetup(peerIp peerID, linkId graph.LinkID, tunnelId tunnelID) (bool, tunnelID, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -74,7 +74,7 @@ func (man *RemoteManager) requestSetup(peerIp string, linkId graph.LinkID, tunne
 
 	request, err := http.NewRequest(
 		http.MethodPut,
-		"http://"+peerIp+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		"http://"+string(peerIp)+":8080/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		bytes.NewReader(data))
 	if err != nil {
 		return false, tunnelId, err
@@ -117,7 +117,7 @@ func (man *RemoteManager) requestSetup(peerIp string, linkId graph.LinkID, tunne
 }
 
 //requestDelete DELETES a link
-func (man *RemoteManager) requestDelete(peerIp string, linkId graph.LinkID) (bool, error) {
+func (man *RemoteManager) requestDelete(peerId peerID, linkId graph.LinkID) (bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -129,7 +129,7 @@ func (man *RemoteManager) requestDelete(peerIp string, linkId graph.LinkID) (boo
 
 	request, err := http.NewRequest(
 		http.MethodDelete,
-		"http://"+peerIp+"/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		"http://"+string(peerId)+":8080/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
 		return false, err
@@ -146,4 +146,39 @@ func (man *RemoteManager) requestDelete(peerIp string, linkId graph.LinkID) (boo
 		return false, errors.New("Unexpected return code:" + resp.Status)
 	}
 	return resp.StatusCode == http.StatusOK, nil
+}
+
+//tryResyncUnsafe tries to have the other side resync the given list of links
+func (man *RemoteManager) tryResyncUnsafe(peerId peerID, linkIds []graph.LinkID) error {
+	client := http.Client{
+		Timeout: 300 * time.Millisecond,
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout: 100 * time.Millisecond,
+			}).Dial,
+		},
+	}
+
+	data, err := json.Marshal(&linkIds)
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequest(
+		http.MethodPost,
+		"http://"+fmt.Sprint(peerId)+":8080/peer/"+url.PathEscape(string(man.peerId))+"/resync",
+		bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+
+	if !(resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted) {
+		return errors.New("Unexpected response code: " + resp.Status)
+	}
+	return nil
 }

@@ -52,7 +52,7 @@ func (net *network) init() {
 	}
 
 	//2. - start serving requests
-	net.remote = remote.New("192.168.33.10:8080", net.graph, net.eventBus)
+	net.remote = remote.New(net.graph, net.eventBus)
 
 	//3. - start listening for graph changes
 	go net.listenEvents()
@@ -76,7 +76,7 @@ func (net *network) UpdateContainer(containerId string) error {
 
 func (net *network) RemoveContainer(containerId string) {
 	//push an empty network
-	oldContainerNet := net.graph.PushContainerChanges(graph.ContainerNetwork{ContainerId: graph.ContainerID(containerId)})
+	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(graph.ContainerID(containerId)))
 	net.pushContainerEvents(oldContainerNet)
 }
 

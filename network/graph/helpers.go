@@ -6,7 +6,7 @@ import (
 )
 
 func ParseContainerNetwork(containerId string, containerLabels map[string]string) ContainerNetwork {
-	data := ContainerNetwork{ContainerId: ContainerID(containerId)}
+	data := GetEmptyContainerNetwork(ContainerID(containerId))
 
 	value, has := containerLabels["com.opencord.network.graph"]
 	if !has {
@@ -21,7 +21,7 @@ func ParseContainerNetwork(containerId string, containerLabels map[string]string
 	return data
 }
 
-func getEmptyContainerNetwork(containerId ContainerID) ContainerNetwork {
+func GetEmptyContainerNetwork(containerId ContainerID) ContainerNetwork {
 	return ContainerNetwork{ContainerId: ContainerID(containerId)}
 }
 
