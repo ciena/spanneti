@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/khagerma/cord-networking/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"io/ioutil"
 	"net/http"
 	"time"

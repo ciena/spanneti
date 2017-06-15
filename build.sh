@@ -4,7 +4,7 @@
 docker run --rm \
   -v $GOPATH/src:/go/src \
   golang:1.8.1 \
-  bash -c "cd /go/src/github.com/khagerma/cord-networking; go build -v -tags netgo --ldflags '-extldflags \"-static\"' -o build/spanneti main.go"
+  bash -c "cd /go/src/bitbucket.ciena.com/BP_ONOS/spanneti; go build -v -tags netgo --ldflags '-extldflags \"-static\"' -o build/spanneti main.go"
 
 docker build -t spanneti .
 

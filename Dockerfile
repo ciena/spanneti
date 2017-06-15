@@ -1,5 +1,5 @@
 FROM alpine:3.5
 
-COPY build/spanneti /cord/spanneti
+COPY build/spanneti /bin/spanneti
 
-CMD /cord/spanneti
+CMD spanneti

@@ -2,8 +2,8 @@ package remote
 
 import (
 	"fmt"
-	"github.com/khagerma/cord-networking/network/graph"
-	"github.com/khagerma/cord-networking/network/resolver"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"net"
 	"sync"
 )
@@ -83,7 +83,7 @@ func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
 	}
 }
 
-func lookupPeers() ([]peerID, error) {
+func lookupPeerIps() ([]peerID, error) {
 	ips, err := net.LookupIP(DNS_ENTRY)
 	if err != nil {
 		return []peerID{}, err

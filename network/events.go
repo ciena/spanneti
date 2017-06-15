@@ -1,10 +1,10 @@
 package network
 
 import (
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"context"
 	"fmt"
-	"github.com/khagerma/cord-networking/network/graph"
-	"github.com/khagerma/cord-networking/network/resolver"
 )
 
 func (net *network) FireEvent(linkId graph.LinkID) {
@@ -22,24 +22,20 @@ func (net *network) listenEvents() {
 			//setup if the link exists
 			if err := net.tryCreateContainerLink(linkMap, linkId); err != nil {
 				fmt.Println(err)
-				break
 			}
 
 			//teardown if the link does not exist
 			if err := net.tryCleanupContainerLink(linkMap, linkId); err != nil {
 				fmt.Println(err)
-				break
 			}
 
 			//try to setup connection to container
 			if err := net.tryCreateRemoteLink(linkMap, linkId); err != nil {
 				fmt.Println(err)
-				break
 			}
 
 			if err := net.tryCleanupRemoteLink(linkMap, linkId); err != nil {
 				fmt.Println(err)
-				break
 			}
 
 		}
@@ -49,7 +45,8 @@ func (net *network) listenEvents() {
 //tryCreateContainerLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
 func (net *network) tryCreateContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) == 2 {
-		fmt.Printf("Should link:\n  %s in %s\n  %s in %s\n",
+		fmt.Printf("Should link (shared linkId: %s):\n  %s in %s\n  %s in %s\n",
+			linkId,
 			nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12],
 			nets[1].GetIfaceFor(linkId), nets[1].ContainerId[0:12])
 
@@ -88,6 +85,7 @@ func (net *network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkI
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
 func (net *network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) == 1 {
+		fmt.Printf("Trying to link to remote (linkId: %s):\n  %s in %s\n", linkId, nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12])
 		if setup, err := net.remote.TryConnect(linkId); err != nil {
 			fmt.Println(err)
 		} else {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/khagerma/cord-networking/network"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network"
 )
 
 func main() {

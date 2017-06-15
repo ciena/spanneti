@@ -2,7 +2,7 @@ package resolver
 
 import (
 	"fmt"
-	"github.com/khagerma/cord-networking/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 )
 
 func SetupRemoteContainerLink(peerIp string, linkId graph.LinkID, tunnelId uint64) error {

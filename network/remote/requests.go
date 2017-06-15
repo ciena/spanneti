@@ -1,11 +1,11 @@
 package remote
 
 import (
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/khagerma/cord-networking/network/graph"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -14,7 +14,7 @@ import (
 )
 
 //requestState GETs a link
-func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getResponse, error) {
+func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getResponse, bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -29,31 +29,35 @@ func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getR
 		"http://"+fmt.Sprint(peerIp)+":8080/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
-		return getResponse{}, err
+		return getResponse{}, false, err
 	}
 
 	resp, err := client.Do(request)
 	if err != nil {
 		//if fails, just go to next
-		return getResponse{}, err
+		return getResponse{}, false, err
 	}
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-		return getResponse{}, errors.New("Unexpected status code: " + resp.Status)
+	if resp.StatusCode == http.StatusNotFound {
+		return getResponse{}, false, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return getResponse{}, false, errors.New("Unexpected status code: " + resp.Status)
 	}
 
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return getResponse{}, err
+		return getResponse{}, false, err
 	}
 
 	var response getResponse
 	if err := json.Unmarshal(data, &response); err != nil {
 		//if fails, just go to next
-		return getResponse{}, err
+		return getResponse{}, false, err
 	}
 
-	return response, nil
+	return response, true, nil
 }
 
 //requestSetup PUTs a link

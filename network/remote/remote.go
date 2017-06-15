@@ -3,7 +3,7 @@ package remote
 import (
 	"errors"
 	"fmt"
-	"github.com/khagerma/cord-networking/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"net"
 	"sync"
 	"time"
@@ -37,7 +37,7 @@ func determineOwnId() peerID {
 	for ownId == "" {
 		fmt.Print("Determining own IP... ")
 
-		peerIps, err := lookupPeers()
+		peerIps, err := lookupPeerIps()
 		if err != nil {
 			panic(err)
 		}
@@ -138,7 +138,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 	deleted = false
 
-	peers, err := lookupPeers()
+	peers, err := lookupPeerIps()
 	if err != nil {
 		panic(err)
 	}
@@ -170,7 +170,7 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peerID, []get
 	var peerIps []peerID
 	var possibilities []getResponse
 
-	peers, err := lookupPeers()
+	peers, err := lookupPeerIps()
 	if err != nil {
 		panic(err)
 	}
@@ -181,14 +181,17 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peerID, []get
 			continue
 		}
 
-		response, err := man.requestState(peerId, linkId)
+		response, haveLinkId, err := man.requestState(peerId, linkId)
 		if err != nil {
 			man.unableToSync(peerId, linkId)
+			fmt.Println(err)
 			continue
 		}
 
-		peerIps = append(peerIps, peerId)
-		possibilities = append(possibilities, response)
+		if haveLinkId {
+			peerIps = append(peerIps, peerId)
+			possibilities = append(possibilities, response)
+		}
 	}
 
 	return peerIps, possibilities
