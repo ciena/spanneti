@@ -97,7 +97,6 @@ func (man *RemoteManager) requestSetup(peerIp peerID, linkId graph.LinkID, tunne
 	if err != nil {
 		return false, tunnelId, err
 	}
-	fmt.Println(resp.Status, string(data))
 
 	var response linkProposalResponse
 	if err := json.Unmarshal(data, &response); err != nil {
@@ -139,17 +138,15 @@ func (man *RemoteManager) requestDelete(peerId peerID, linkId graph.LinkID) (boo
 		return false, err
 	}
 
-	fmt.Println(request.Method, request.URL)
 	resp, err := client.Do(request)
 	if err != nil {
 		return false, err
 	}
 
-	fmt.Println(resp.Status)
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+	if resp.StatusCode != http.StatusOK {
 		return false, errors.New("Unexpected return code:" + resp.Status)
 	}
-	return resp.StatusCode == http.StatusOK, nil
+	return true, nil
 }
 
 //tryResyncUnsafe tries to have the other side resync the given list of links

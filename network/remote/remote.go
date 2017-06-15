@@ -1,9 +1,9 @@
 package remote
 
 import (
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"errors"
 	"fmt"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"net"
 	"sync"
 	"time"
@@ -77,7 +77,11 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 	peerIps, possibilities := man.getPossibilities(linkId)
 
 	if len(possibilities) != 1 {
-		fmt.Println("Unable to find two containers with the same link ID.  Ignoring...")
+		if len(possibilities) == 0 {
+			fmt.Println("No remote containers with linkId", linkId)
+		} else {
+			fmt.Println("Too many remote containers with linkId", linkId)
+		}
 		return false, nil
 	}
 

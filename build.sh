@@ -8,6 +8,8 @@ docker run --rm \
 
 docker build -t spanneti .
 
+docker rmi $(docker images -q --filter=dangling=true)
+
 if [ "$1" == "--run" ]; then
 	docker run --rm \
     --pid=host \

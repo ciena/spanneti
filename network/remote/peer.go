@@ -1,9 +1,9 @@
 package remote
 
 import (
-	"fmt"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
+	"fmt"
 	"net"
 	"sync"
 )
@@ -25,7 +25,7 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
 	//cleanup old relationships
 	if oldTunnelId, have := peer.tunnelFor[linkId]; have {
 		if oldTunnelId == tunnelId {
-			fmt.Println("Alreay set up:", tunnelId, "at", linkId, "to", peer.peerId)
+			fmt.Println("Alreay set up:", linkId, "to", peer.peerId, "via", tunnelId)
 			return nil
 		}
 		delete(peer.linkFor, oldTunnelId)

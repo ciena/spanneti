@@ -1,29 +1,29 @@
 package network
 
 import (
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote"
 )
 
-type network struct {
+type Network struct {
 	graph    *graph.Graph
 	remote   *remote.RemoteManager
 	client   *client.Client
 	eventBus chan graph.LinkID
 }
 
-func New() *network {
+func New() *Network {
 	client, err := client.NewEnvClient()
 	if err != nil {
 		panic(err)
 	}
 
-	net := &network{
+	net := &Network{
 		graph:    graph.New(),
 		client:   client,
 		eventBus: make(chan graph.LinkID),
@@ -33,7 +33,7 @@ func New() *network {
 	return net
 }
 
-func (net *network) init() {
+func (net *Network) init() {
 	args := filters.NewArgs()
 	args.Add("label", "com.opencord.network.graph")
 	containers, err := net.client.ContainerList(context.Background(), types.ContainerListOptions{
@@ -61,7 +61,7 @@ func (net *network) init() {
 	net.pushContainersEvents(netGraphs)
 }
 
-func (net *network) UpdateContainer(containerId string) error {
+func (net *Network) UpdateContainer(containerId string) error {
 	container, err := net.client.ContainerInspect(context.Background(), containerId)
 	if err != nil {
 		return err
@@ -74,13 +74,13 @@ func (net *network) UpdateContainer(containerId string) error {
 	return nil
 }
 
-func (net *network) RemoveContainer(containerId string) {
+func (net *Network) RemoveContainer(containerId string) {
 	//push an empty network
 	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(graph.ContainerID(containerId)))
 	net.pushContainerEvents(oldContainerNet)
 }
 
-func (net *network) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
+func (net *Network) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
 	//build a map of all the networks
 	linkIds := make(map[graph.LinkID]bool)
 	for _, containerNet := range containerNets {
@@ -94,7 +94,7 @@ func (net *network) pushContainerEvents(containerNets ...graph.ContainerNetwork)
 	}
 }
 
-func (net *network) pushContainersEvents(containerNets []graph.ContainerNetwork) {
+func (net *Network) pushContainersEvents(containerNets []graph.ContainerNetwork) {
 	//build a map of all the networks
 	linkIds := make(map[graph.LinkID]bool)
 	for _, containerNet := range containerNets {

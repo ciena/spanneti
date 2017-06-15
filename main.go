@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -27,36 +31,56 @@ func main() {
 	//	panic(err)
 	//}
 
+	//listen for shutdown signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err)
 	}
 	//1. start listening for changes
-	events, errs := cli.Events(context.Background(), types.EventsOptions{})
+	eventChan, errChan := cli.Events(context.Background(), types.EventsOptions{})
 
 	//2. initialize the network
 	net := network.New()
 
 	//3. apply changes that happened while network was initializing,
-	//   then continue listening for events
+	//   and continue listening for events
+	eventLoop(net, eventChan, errChan, sigChan)
+}
+
+func eventLoop(net *network.Network, eventChan <-chan events.Message, errChan <-chan error, sigChan <-chan os.Signal) {
 	for {
 		select {
-		case event := <-events:
+		case event := <-eventChan:
+			containerEvent(net, event)
 
-			fmt.Println("Docker event:", event.Action, event.Type, string(event.Actor.ID))
-
-			if event.Type == "container" && event.Action == "start" {
-				if err := net.UpdateContainer(event.Actor.ID); err != nil {
-					fmt.Println(err)
-				}
-			}
-
-			if event.Type == "container" && event.Action == "die" {
-				net.RemoveContainer(event.Actor.ID)
-			}
-
-		case err := <-errs:
+		case err := <-errChan:
 			panic(err)
+
+		case signal := <-sigChan:
+			fmt.Println("Received signal:", signal)
+			return
+		}
+	}
+}
+
+func containerEvent(net *network.Network, event events.Message){
+	if event.Type == events.ContainerEventType {
+		if len(event.Actor.ID) >= 12 {
+			fmt.Println("Container event:", event.Action, string(event.Actor.ID[0:12]))
+		} else {
+			fmt.Println("Container event:", event.Action, string(event.Actor.ID))
+		}
+
+		switch event.Action {
+		case "start":
+			if err := net.UpdateContainer(event.Actor.ID); err != nil {
+				fmt.Println(err)
+			}
+		case "die":
+			net.RemoveContainer(event.Actor.ID)
 		}
 	}
 }

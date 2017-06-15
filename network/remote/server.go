@@ -1,10 +1,10 @@
 package remote
 
 import (
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -24,7 +24,7 @@ func (man *RemoteManager) runServer() {
 		ReadTimeout:  100 * time.Millisecond,
 		WriteTimeout: 100 * time.Millisecond,
 		Handler:      r,
-		Addr:         string(man.peerId)+":8080",
+		Addr:         string(man.peerId) + ":8080",
 	}
 	srv.ListenAndServe()
 }
@@ -225,40 +225,3 @@ func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
-type peerLinkID struct {
-	peerId peerID
-	linkId graph.LinkID
-}
-
-//list //startup action; list all so differences can be determined, and new creates/deletes sent
-////slice of linkResponses
-//
-//put //propose new links (abnormal response: [409: conflict] tunnelId proposal)
-////linkResponse
-//
-//delete //remove an existing link
-////no content
-//
-//get //get link if it exists (unused)
-//post //force update link (delete old and re-create) (unused)
-
-type listResponse struct {
-}
-
-type deleteRequest struct {
-	linkId graph.LinkID `json:"link-id"`
-}
-
-//how to preserve existing traffic?
-
-//if the link
-
-func linkHandler(http.ResponseWriter, *http.Request) {
-	//responses: SETUP_COMPLETE, NO_MATCHING_LINK, PROPOSE_NEW_TUNNEL_ID
-
-	//if provided id is valid, accept the request
-	//if provided id is invalid, propose the next available id
-
-	//if given LinkID does not exist, simply respond with "not found"
-	//if t
-}

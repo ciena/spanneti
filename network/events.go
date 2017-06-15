@@ -7,11 +7,11 @@ import (
 	"fmt"
 )
 
-func (net *network) FireEvent(linkId graph.LinkID) {
+func (net *Network) FireEvent(linkId graph.LinkID) {
 	net.eventBus <- linkId
 }
 
-func (net *network) listenEvents() {
+func (net *Network) listenEvents() {
 	for true {
 		select {
 		case linkId := <-net.eventBus:
@@ -43,9 +43,9 @@ func (net *network) listenEvents() {
 }
 
 //tryCreateContainerLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
-func (net *network) tryCreateContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+func (net *Network) tryCreateContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) == 2 {
-		fmt.Printf("Should link (shared linkId: %s):\n  %s in %s\n  %s in %s\n",
+		fmt.Printf("Should link (linkId: %s):\n  %s in %s\n  %s in %s\n",
 			linkId,
 			nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12],
 			nets[1].GetIfaceFor(linkId), nets[1].ContainerId[0:12])
@@ -67,8 +67,9 @@ func (net *network) tryCreateContainerLink(nets []graph.ContainerNetwork, linkId
 }
 
 //tryCleanupContainerLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
-func (net *network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+func (net *Network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) == 1 {
+		fmt.Printf("Should clean (linkId: %s)\n", linkId)
 		containerPid, err := net.getContainerPid(nets[0].ContainerId)
 		if err != nil {
 			return err
@@ -83,9 +84,9 @@ func (net *network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkI
 }
 
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
-func (net *network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+func (net *Network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) == 1 {
-		fmt.Printf("Trying to link to remote (linkId: %s):\n  %s in %s\n", linkId, nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12])
+		fmt.Printf("Should link remote (linkId: %s):\n  %s in %s\n", linkId, nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12])
 		if setup, err := net.remote.TryConnect(linkId); err != nil {
 			fmt.Println(err)
 		} else {
@@ -96,15 +97,16 @@ func (net *network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId gr
 }
 
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
-func (net *network) tryCleanupRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
+func (net *Network) tryCleanupRemoteLink(nets []graph.ContainerNetwork, linkId graph.LinkID) error {
 	if len(nets) != 1 {
+		fmt.Printf("Should clean remotes (linkId: %s)\n", linkId)
 		deleted := net.remote.TryCleanup(linkId)
 		fmt.Println("Remote cleaned up?:", deleted)
 	}
 	return nil
 }
 
-func (net *network) getContainerPid(containerId graph.ContainerID) (int, error) {
+func (net *Network) getContainerPid(containerId graph.ContainerID) (int, error) {
 	if container, err := net.client.ContainerInspect(context.Background(), string(containerId)); err != nil {
 		return 0, err
 	} else {

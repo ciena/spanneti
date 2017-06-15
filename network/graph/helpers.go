@@ -12,7 +12,6 @@ func ParseContainerNetwork(containerId string, containerLabels map[string]string
 	if !has {
 		return data
 	}
-	fmt.Println(string(value))
 
 	err := json.Unmarshal([]byte(value), &data)
 	if err != nil {

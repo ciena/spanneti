@@ -1,12 +1,12 @@
 package resolver
 
 import (
-	"fmt"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"fmt"
 )
 
 func SetupRemoteContainerLink(peerIp string, linkId graph.LinkID, tunnelId uint64) error {
-	fmt.Println("Dummy setup", tunnelId, "at", linkId, "to", peerIp)
+	fmt.Println("Dummy setup", linkId, "to", peerIp, "via", tunnelId)
 	return nil
 }
 

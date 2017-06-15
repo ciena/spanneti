@@ -12,8 +12,6 @@ func (man *RemoteManager) unableToSync(peerId peerID, linkId graph.LinkID) {
 		panic("unableToSync() called with self as peer.  Are you sure you want to do that?")
 	}
 
-	fmt.Println("Now out of sync:", linkId, "@", peerId)
-
 	man.resyncMutex.Lock()
 	defer man.resyncMutex.Unlock()
 
