@@ -5,6 +5,7 @@ import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 )
 
@@ -12,7 +13,10 @@ type peerID string
 type tunnelID uint64
 
 const MAX_TUNNEL_ID = 16777216
-const DNS_ENTRY = "spanneti.default.svc.cluster.local"
+const DNS_ENTRY = "%s.%s.svc.cluster.local"
+
+var SERVICE = os.Getenv("SERVICE")
+var NAMESPACE = os.Getenv("NAMESPACE")
 
 type remotePeer struct {
 	peerId    peerID
@@ -84,7 +88,7 @@ func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
 }
 
 func lookupPeerIps() ([]peerID, error) {
-	ips, err := net.LookupIP(DNS_ENTRY)
+	ips, err := net.LookupIP(fmt.Sprintf(DNS_ENTRY, SERVICE, NAMESPACE))
 	if err != nil {
 		return []peerID{}, err
 	}

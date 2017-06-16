@@ -10,19 +10,24 @@ spec:
     spec:
       hostPID: true
       containers:
-        - securityContext:
-            privileged: true
-          image: spanneti:latest
-          # remove this once a proper repo is set up
-          imagePullPolicy: IfNotPresent
-          name: spanneti
-          volumeMounts:
-            - name: docker
-              mountPath: /var/run/docker.sock
-      volumes:
+      - securityContext:
+          privileged: true
+        image: spanneti:latest
+        # remove this once a proper repo is set up
+        imagePullPolicy: IfNotPresent
+        name: spanneti
+        env:
+        - name: NAMESPACE
+          value: default
+        - name: SERVICE
+          value: spanneti
+        volumeMounts:
         - name: docker
-          hostPath:
-            path: /var/run/docker.sock
+          mountPath: /var/run/docker.sock
+      volumes:
+      - name: docker
+        hostPath:
+          path: /var/run/docker.sock
 
 ---
 kind: Service
