@@ -66,7 +66,7 @@ func eventLoop(net *network.Network, eventChan <-chan events.Message, errChan <-
 	}
 }
 
-func containerEvent(net *network.Network, event events.Message){
+func containerEvent(net *network.Network, event events.Message) {
 	if event.Type == events.ContainerEventType {
 		if len(event.Actor.ID) >= 12 {
 			fmt.Println("Container event:", event.Action, string(event.Actor.ID[0:12]))

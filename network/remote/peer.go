@@ -20,6 +20,7 @@ var NAMESPACE = os.Getenv("NAMESPACE")
 
 type remotePeer struct {
 	peerId    peerID
+	fabricIp  string
 	tunnelFor map[graph.LinkID]tunnelID
 	linkFor   map[tunnelID]graph.LinkID
 	mutex     sync.Mutex
@@ -34,7 +35,7 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
 		}
 		delete(peer.linkFor, oldTunnelId)
 		delete(peer.tunnelFor, linkId)
-		if err := resolver.TeardownRemoteContainerLink(string(peer.peerId), linkId); err != nil {
+		if err := resolver.TeardownRemoteContainerLink(peer.fabricIp, linkId); err != nil {
 			return err
 		}
 	}
@@ -43,7 +44,8 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
 	peer.tunnelFor[linkId] = tunnelId
 	peer.linkFor[tunnelId] = linkId
 
-	err := resolver.SetupRemoteContainerLink(string(peer.peerId), linkId, uint64(tunnelId))
+	fmt.Printf("Will setup link %s to %s(%s) via %d\n", linkId, peer.fabricIp, peer.peerId, tunnelId)
+	err := resolver.SetupRemoteContainerLink(peer.fabricIp, linkId, uint64(tunnelId))
 	if err != nil {
 		delete(peer.tunnelFor, linkId)
 		delete(peer.linkFor, tunnelId)
@@ -56,7 +58,7 @@ func (peer *remotePeer) deallocate(linkId graph.LinkID) error {
 	if tunnelId, have := peer.tunnelFor[linkId]; have {
 		delete(peer.linkFor, tunnelId)
 		delete(peer.tunnelFor, linkId)
-		return resolver.TeardownRemoteContainerLink(string(peer.peerId), linkId)
+		return resolver.TeardownRemoteContainerLink(peer.fabricIp, linkId)
 	}
 	return nil
 }
@@ -70,20 +72,26 @@ func (peer *remotePeer) nextAvailableTunnelId(after tunnelID) *tunnelID {
 	return nil
 }
 
-func (man *RemoteManager) getPeer(peerId peerID) *remotePeer {
+func (man *RemoteManager) getPeer(peerId peerID) (*remotePeer, error) {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
 	if peer, have := man.peer[peerId]; have {
-		return peer
+		return peer, nil
 	} else {
+		info, err := man.requestInfo(peerId)
+		if err != nil {
+			return nil, err
+		}
+
 		peer := &remotePeer{
 			peerId:    peerId,
+			fabricIp:  info.FabricIp,
 			tunnelFor: make(map[graph.LinkID]tunnelID),
 			linkFor:   make(map[tunnelID]graph.LinkID),
 		}
 		man.peer[peerId] = peer
-		return peer
+		return peer, nil
 	}
 }
 

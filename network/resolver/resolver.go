@@ -32,7 +32,7 @@ func GetPhysicalInterface() error {
 		}
 
 		for num, link := range links {
-			fmt.Println(num, link)
+			fmt.Println(num, fmt.Sprintf("%+v", link))
 
 			switch link := link.(type) {
 			case *netlink.Bond:
@@ -79,7 +79,7 @@ func GetPhysicalInterface() error {
 		}
 
 		for num, link := range links {
-			fmt.Println(num, link)
+			fmt.Println(num, fmt.Sprintf("%+v", link))
 
 			switch link := link.(type) {
 			case *netlink.Bond:

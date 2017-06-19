@@ -13,6 +13,49 @@ import (
 	"time"
 )
 
+//requestInfo GETs peer info
+func (man *RemoteManager) requestInfo(peerIp peerID) (infoResponse, error) {
+	client := http.Client{
+		Timeout: 300 * time.Millisecond,
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout: 100 * time.Millisecond,
+			}).Dial,
+		},
+	}
+
+	request, err := http.NewRequest(
+		http.MethodGet,
+		"http://"+fmt.Sprint(peerIp)+":8080/info",
+		nil)
+	if err != nil {
+		return infoResponse{}, err
+	}
+
+	resp, err := client.Do(request)
+	if err != nil {
+		//if fails, just go to next
+		return infoResponse{}, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return infoResponse{}, errors.New("Unexpected status code: " + resp.Status)
+	}
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return infoResponse{}, err
+	}
+
+	var response infoResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		//if fails, just go to next
+		return infoResponse{}, err
+	}
+
+	return response, nil
+}
+
 //requestState GETs a link
 func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getResponse, bool, error) {
 	client := http.Client{

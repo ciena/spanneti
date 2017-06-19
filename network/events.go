@@ -77,7 +77,7 @@ func (net *Network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkI
 		if removed, err := resolver.DeleteContainerInterface(nets[0].GetIfaceFor(linkId), containerPid); err != nil {
 			return err
 		} else if removed {
-			fmt.Println("Removing:\n  ", nets[0].GetIfaceFor(linkId), "in", nets[0].ContainerId[0:12])
+			fmt.Println("Removed interface:\n  ", nets[0].GetIfaceFor(linkId), "in", nets[0].ContainerId[0:12])
 		}
 	}
 	return nil
@@ -90,7 +90,7 @@ func (net *Network) tryCreateRemoteLink(nets []graph.ContainerNetwork, linkId gr
 		if setup, err := net.remote.TryConnect(linkId); err != nil {
 			fmt.Println(err)
 		} else {
-			fmt.Println("Remote setup?:", setup)
+			fmt.Println("Setup link to remote?:", setup)
 		}
 	}
 	return nil
@@ -101,7 +101,7 @@ func (net *Network) tryCleanupRemoteLink(nets []graph.ContainerNetwork, linkId g
 	if len(nets) != 1 {
 		fmt.Printf("Should clean remotes (linkId: %s)\n", linkId)
 		deleted := net.remote.TryCleanup(linkId)
-		fmt.Println("Remote cleaned up?:", deleted)
+		fmt.Println("Cleaned up link to remote?:", deleted)
 	}
 	return nil
 }

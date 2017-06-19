@@ -12,6 +12,7 @@ import (
 
 func (man *RemoteManager) runServer() {
 	r := mux.NewRouter()
+	r.HandleFunc("/info", man.infoHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{peerId}/resync", man.resyncHandler).Methods(http.MethodPost)
 	r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{peerId}/link/", man.updateLinksHandler).Methods(http.MethodPut)
@@ -27,6 +28,24 @@ func (man *RemoteManager) runServer() {
 		Addr:         string(man.peerId) + ":8080",
 	}
 	srv.ListenAndServe()
+}
+
+type infoResponse struct {
+	FabricIp string `json:"fabric-ip"`
+}
+
+func (man *RemoteManager) infoHandler(w http.ResponseWriter, r *http.Request) {
+	response := infoResponse{
+		FabricIp: man.fabricIp,
+	}
+	if data, err := json.Marshal(response); err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
 }
 
 type linkResponse struct {
@@ -60,7 +79,12 @@ func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (man *RemoteManager) listLinksHandler(w http.ResponseWriter, r *http.Request) {
-	peer := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	peer, err := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	peer.mutex.Lock()
 	defer peer.mutex.Unlock()
 
@@ -109,7 +133,12 @@ func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	peer := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	peer, err := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	peer.mutex.Lock()
 	defer peer.mutex.Unlock()
 
@@ -177,7 +206,12 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	peer := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	peer, err := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	peer.mutex.Lock()
 	defer peer.mutex.Unlock()
 
@@ -210,13 +244,16 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Request) {
-	linkId := graph.LinkID(mux.Vars(r)["linkId"])
-
-	peer := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	peer, err := man.getPeer(peerID(mux.Vars(r)["peerId"]))
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	peer.mutex.Lock()
 	defer peer.mutex.Unlock()
 
-	if err := peer.deallocate(linkId); err != nil {
+	if err := peer.deallocate(graph.LinkID(mux.Vars(r)["linkId"])); err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -224,4 +261,3 @@ func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Reque
 
 	w.WriteHeader(http.StatusOK)
 }
-

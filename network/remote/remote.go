@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"errors"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 
 type RemoteManager struct {
 	peerId      peerID
+	fabricIp    string
 	peer        map[peerID]*remotePeer
 	mutex       sync.Mutex
 	resyncMutex sync.Mutex
@@ -19,9 +21,17 @@ type RemoteManager struct {
 	outOfSync   map[peerID]map[graph.LinkID]bool
 }
 
-func New(network *graph.Graph, ch chan<- graph.LinkID) *RemoteManager {
+func New(network *graph.Graph, ch chan<- graph.LinkID) (*RemoteManager, error) {
+	fmt.Print("Determining fabric IP... ")
+	ip, err := resolver.DetermineFabricIp()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(ip)
+
 	man := &RemoteManager{
 		peerId:    determineOwnId(),
+		fabricIp:  ip,
 		peer:      make(map[peerID]*remotePeer),
 		graph:     network,
 		eventBus:  ch,
@@ -29,7 +39,7 @@ func New(network *graph.Graph, ch chan<- graph.LinkID) *RemoteManager {
 	}
 
 	go man.runServer()
-	return man
+	return man, nil
 }
 
 func determineOwnId() peerID {
@@ -85,7 +95,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 		return false, nil
 	}
 
-	peerIp := peerIps[0]
+	peerId := peerIps[0]
 	response := possibilities[0]
 
 	tunnelId := response.TunnelId
@@ -100,37 +110,44 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 			//
 
 			var err error
-			setup, tunnelId, err = man.requestSetup(peerIp, linkId, tunnelId)
+			setup, tunnelId, err = man.requestSetup(peerId, linkId, tunnelId)
 			if err != nil {
-				man.unableToSync(peerIp, linkId)
+				man.unableToSync(peerId, linkId)
 				return false, err
 			}
 		}
 
 		//now that it's setup remotely, try to setup locally
 
-		peer := man.getPeer(peerIp)
+		peer, err := man.getPeer(peerId)
+		if err != nil {
+			man.unableToSync(peerId, linkId)
+			return false, err
+		}
 		peer.mutex.Lock()
 		if currentLinkId, have := peer.linkFor[tunnelId]; !have || currentLinkId == linkId {
 			err := peer.allocate(linkId, tunnelId)
 			peer.mutex.Unlock()
+
 			if err != nil {
-				man.unableToSync(peerIp, linkId)
+				man.unableToSync(peerId, linkId)
 				return false, err
 			}
 			localSetup = true
 		} else {
 			//go to next available tunnel ID
-			if tunnel := peer.nextAvailableTunnelId(tunnelId); tunnel == nil {
-				man.unableToSync(peerIp, linkId)
+			tunnel := peer.nextAvailableTunnelId(tunnelId)
+			peer.mutex.Unlock()
+
+			if tunnel == nil {
+				man.unableToSync(peerId, linkId)
 				return false, errors.New("Out of tunnelIds?")
 			} else {
 				tunnelId = *tunnel
 			}
-			peer.mutex.Unlock()
 
-			if _, err := man.requestDelete(peerIp, linkId); err != nil {
-				man.unableToSync(peerIp, linkId)
+			if _, err := man.requestDelete(peerId, linkId); err != nil {
+				man.unableToSync(peerId, linkId)
 				return false, err
 			}
 			setup = false
@@ -153,7 +170,12 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 			continue
 		}
 
-		peer := man.getPeer(peerId)
+		peer, err := man.getPeer(peerId)
+		if err != nil {
+			man.unableToSync(peerId, linkId)
+			fmt.Println(err)
+			continue
+		}
 		peer.mutex.Lock()
 		if err := peer.deallocate(linkId); err != nil {
 			fmt.Println(err)
@@ -163,6 +185,7 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 		if wasDeleted, err := man.requestDelete(peerId, linkId); err != nil {
 			man.unableToSync(peerId, linkId)
 			fmt.Println(err)
+			continue
 		} else if wasDeleted {
 			deleted = true
 		}
