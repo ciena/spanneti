@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"strings"
 )
 
 type Network struct {
@@ -34,20 +34,19 @@ func New() *Network {
 }
 
 func (net *Network) init() {
-	args := filters.NewArgs()
-	args.Add("label", "com.opencord.network.graph")
-	containers, err := net.client.ContainerList(context.Background(), types.ContainerListOptions{
-		Filters: args,
-	})
+	containers, err := net.client.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
 	//this order is intentional, to avoid missing container changes during init
 	//1. - build the current network graph
 	netGraphs := make([]graph.ContainerNetwork, len(containers))
 	for i, container := range containers {
-		netGraphs[i] = graph.ParseContainerNetwork(container.ID, container.Labels)
+		netGraphs[i], err = net.GetContainerNetwork(container.ID)
+		if err != nil {
+			fmt.Println(err)
+		}
 		net.graph.PushContainerChanges(netGraphs[i])
 	}
 
@@ -65,22 +64,50 @@ func (net *Network) init() {
 }
 
 func (net *Network) UpdateContainer(containerId string) error {
-	container, err := net.client.ContainerInspect(context.Background(), containerId)
+	containerNet, err := net.GetContainerNetwork(containerId)
 	if err != nil {
 		return err
 	}
-
-	containerNet := graph.ParseContainerNetwork(container.ID, container.Config.Labels)
 	oldContainerNet := net.graph.PushContainerChanges(containerNet)
 	net.pushContainerEvents(oldContainerNet, containerNet)
-
 	return nil
 }
 
 func (net *Network) RemoveContainer(containerId string) {
 	//push an empty network
-	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(graph.ContainerID(containerId)))
+	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(containerId))
 	net.pushContainerEvents(oldContainerNet)
+}
+
+func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetwork, error) {
+	container, err := net.client.ContainerInspect(context.Background(), containerId)
+	if err != nil {
+		return graph.GetEmptyContainerNetwork(containerId), err
+	}
+
+	var networkData string
+	var has bool
+	for _, env := range container.Config.Env {
+		if strings.HasPrefix(env, "OPENCORD_NETWORK_GRAPH=") {
+			networkData = strings.TrimPrefix(env, "OPENCORD_NETWORK_GRAPH=")
+			has = true
+			break
+		}
+	}
+	if !has {
+		networkData, has = container.Config.Labels["com.opencord.network.graph"]
+	}
+
+	if !has {
+		return graph.GetEmptyContainerNetwork(containerId), nil
+	}
+
+	containerNet, err := graph.ParseContainerNetork(containerId, networkData)
+	if err != nil {
+		//for a parse error, we assume no network.  Not a real error.
+		fmt.Println(err)
+	}
+	return containerNet, nil
 }
 
 func (net *Network) pushContainerEvents(containerNets ...graph.ContainerNetwork) {

@@ -10,7 +10,7 @@ import (
 )
 
 type peerID string
-type tunnelID uint64
+type tunnelID uint32
 
 const MAX_TUNNEL_ID = 16777216
 const DNS_ENTRY = "%s.%s.svc.cluster.local"
@@ -45,7 +45,7 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
 	peer.linkFor[tunnelId] = linkId
 
 	fmt.Printf("Will setup link %s to %s(%s) via %d\n", linkId, peer.fabricIp, peer.peerId, tunnelId)
-	err := resolver.SetupRemoteContainerLink(peer.fabricIp, linkId, uint64(tunnelId))
+	err := resolver.SetupRemoteContainerLink(peer.fabricIp, linkId, uint32(tunnelId))
 	if err != nil {
 		delete(peer.tunnelFor, linkId)
 		delete(peer.linkFor, tunnelId)

@@ -47,7 +47,7 @@ func (graph *Graph) removeContainerUnsafe(containerId ContainerID) ContainerNetw
 		}
 		return *oldContainerNet
 	} else {
-		return GetEmptyContainerNetwork(containerId)
+		return getEmptyContainerNetwork(containerId)
 	}
 }
 

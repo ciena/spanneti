@@ -101,7 +101,7 @@ func (net *Network) tryCleanupRemoteLink(nets []graph.ContainerNetwork, linkId g
 	if len(nets) != 1 {
 		fmt.Printf("Should clean remotes (linkId: %s)\n", linkId)
 		deleted := net.remote.TryCleanup(linkId)
-		fmt.Println("Cleaned up link to remote?:", deleted)
+		fmt.Println("Cleaned up links to remotes?:", deleted)
 	}
 	return nil
 }

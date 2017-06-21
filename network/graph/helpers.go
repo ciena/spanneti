@@ -2,25 +2,22 @@ package graph
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
-func ParseContainerNetwork(containerId string, containerLabels map[string]string) ContainerNetwork {
-	data := GetEmptyContainerNetwork(ContainerID(containerId))
-
-	value, has := containerLabels["com.opencord.network.graph"]
-	if !has {
-		return data
-	}
-
-	err := json.Unmarshal([]byte(value), &data)
+func ParseContainerNetork(containerId string, networkData string) (ContainerNetwork, error) {
+	containerNet := GetEmptyContainerNetwork(containerId)
+	err := json.Unmarshal([]byte(networkData), &containerNet)
 	if err != nil {
-		fmt.Println("Error while parsing network graph:", err)
+		return GetEmptyContainerNetwork(containerId), err
 	}
-	return data
+	return containerNet, nil
 }
 
-func GetEmptyContainerNetwork(containerId ContainerID) ContainerNetwork {
+func GetEmptyContainerNetwork(containerId string) ContainerNetwork {
+	return getEmptyContainerNetwork(ContainerID(containerId))
+}
+
+func getEmptyContainerNetwork(containerId ContainerID) ContainerNetwork {
 	return ContainerNetwork{ContainerId: ContainerID(containerId)}
 }
 

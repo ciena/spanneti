@@ -7,6 +7,8 @@ import (
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -44,8 +46,16 @@ func DetermineFabricIp() (string, error) {
 	return addrs[0].IP.String(), nil
 }
 
-func SetupRemoteContainerLink(peerFabricIp string, linkId graph.LinkID, tunnelId uint64) error {
+func SetupRemoteContainerLink(peerFabricIp string, linkId graph.LinkID, tunnelId uint32) error {
 	fmt.Println("Dummy setup", linkId, "to", peerFabricIp, "via", tunnelId)
+
+	name, err := fabricInterfaceName(peerFabricIp, tunnelId)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(name)
+
 	return nil
 }
 
@@ -54,4 +64,30 @@ func TeardownRemoteContainerLink(peerFabricIp string, linkId graph.LinkID) error
 	return nil
 }
 
-//ip link add fabric-10.0.2.8-10 type vxlan id 10 remote 10.0.2.8 dev fabric
+func fabricInterfaceName(ip string, tunnelId uint32) (string, error) {
+	pieces := strings.Split(ip, ".")
+	if len(pieces) < 4 {
+		return "", errors.New("Invalid fabric IP: " + ip)
+	}
+
+	num0, err := strconv.Atoi(pieces[0])
+	if err != nil {
+		return "", err
+	}
+	num1, err := strconv.Atoi(pieces[1])
+	if err != nil {
+		return "", err
+	}
+	num2, err := strconv.Atoi(pieces[2])
+	if err != nil {
+		return "", err
+	}
+	num3, err := strconv.Atoi(pieces[3])
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("f%08X%06X", num0<<24+num1<<16+num2<<8+num3, tunnelId), nil
+}
+
+//ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
