@@ -3,8 +3,10 @@ package remote
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
+	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/client"
 	"net"
 	"sync"
 	"time"
@@ -13,6 +15,7 @@ import (
 type RemoteManager struct {
 	peerId      peerID
 	fabricIp    string
+	client      *client.Client
 	peer        map[peerID]*remotePeer
 	mutex       sync.Mutex
 	resyncMutex sync.Mutex
@@ -21,7 +24,7 @@ type RemoteManager struct {
 	outOfSync   map[peerID]map[graph.LinkID]bool
 }
 
-func New(network *graph.Graph, ch chan<- graph.LinkID) (*RemoteManager, error) {
+func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID) (*RemoteManager, error) {
 	fmt.Print("Determining fabric IP... ")
 	ip, err := resolver.DetermineFabricIp()
 	if err != nil {
@@ -32,6 +35,7 @@ func New(network *graph.Graph, ch chan<- graph.LinkID) (*RemoteManager, error) {
 	man := &RemoteManager{
 		peerId:    determineOwnId(),
 		fabricIp:  ip,
+		client:    client,
 		peer:      make(map[peerID]*remotePeer),
 		graph:     network,
 		eventBus:  ch,
@@ -83,7 +87,7 @@ func determineOwnId() peerID {
 //get availability from remote
 //provision on remote
 //provision locally
-func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
+func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, containerPid int) (bool, error) {
 	peerIps, possibilities := man.getPossibilities(linkId)
 
 	if len(possibilities) != 1 {
@@ -126,7 +130,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID) (bool, error) {
 		}
 		peer.mutex.Lock()
 		if currentLinkId, have := peer.linkFor[tunnelId]; !have || currentLinkId == linkId {
-			err := peer.allocate(linkId, tunnelId)
+			err := peer.allocate(linkId, ethName, containerPid, tunnelId)
 			peer.mutex.Unlock()
 
 			if err != nil {
@@ -222,4 +226,12 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peerID, []get
 	}
 
 	return peerIps, possibilities
+}
+
+func (man *RemoteManager) getContainerPid(containerId graph.ContainerID) (int, error) {
+	if container, err := man.client.ContainerInspect(context.Background(), string(containerId)); err != nil {
+		return 0, err
+	} else {
+		return container.State.Pid, nil
+	}
 }

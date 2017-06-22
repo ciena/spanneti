@@ -51,7 +51,7 @@ func (net *Network) init() {
 	}
 
 	//2. - start serving requests
-	net.remote, err = remote.New(net.graph, net.eventBus)
+	net.remote, err = remote.New(net.graph, net.client, net.eventBus)
 	if err != nil {
 		panic(err)
 	}

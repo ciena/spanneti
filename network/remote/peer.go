@@ -12,7 +12,7 @@ import (
 type peerID string
 type tunnelID uint32
 
-const MAX_TUNNEL_ID = 16777216
+const NUM_TUNNEL_IDS = 1 << 24
 const DNS_ENTRY = "%s.%s.svc.cluster.local"
 
 var SERVICE = os.Getenv("SERVICE")
@@ -26,7 +26,7 @@ type remotePeer struct {
 	mutex     sync.Mutex
 }
 
-func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
+func (peer *remotePeer) allocate(linkId graph.LinkID, ethName string, containerPid int, tunnelId tunnelID) error {
 	//cleanup old relationships
 	if oldTunnelId, have := peer.tunnelFor[linkId]; have {
 		if oldTunnelId == tunnelId {
@@ -44,8 +44,8 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, tunnelId tunnelID) error {
 	peer.tunnelFor[linkId] = tunnelId
 	peer.linkFor[tunnelId] = linkId
 
-	fmt.Printf("Will setup link %s to %s(%s) via %d\n", linkId, peer.fabricIp, peer.peerId, tunnelId)
-	err := resolver.SetupRemoteContainerLink(peer.fabricIp, linkId, uint32(tunnelId))
+	fmt.Printf("Will setup link %s:%s to %s(%s) via %d\n", ethName, linkId, peer.fabricIp, peer.peerId, tunnelId)
+	err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), peer.fabricIp)
 	if err != nil {
 		delete(peer.tunnelFor, linkId)
 		delete(peer.linkFor, tunnelId)
@@ -64,7 +64,7 @@ func (peer *remotePeer) deallocate(linkId graph.LinkID) error {
 }
 
 func (peer *remotePeer) nextAvailableTunnelId(after tunnelID) *tunnelID {
-	for ; after < MAX_TUNNEL_ID; after++ {
+	for ; after < NUM_TUNNEL_IDS; after++ {
 		if _, has := peer.linkFor[after]; !has {
 			return &after
 		}

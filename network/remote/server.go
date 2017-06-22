@@ -200,7 +200,8 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		status:       http.StatusInternalServerError,
 	}
 
-	if related := man.graph.GetRelatedTo(linkId); len(related) != 1 {
+	related := man.graph.GetRelatedTo(linkId)
+	if len(related) != 1 {
 		//linkId not found, or not available
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -227,8 +228,18 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 			proposal.status = http.StatusConflict
 		}
 	} else {
+		containerPid, err := man.getContainerPid(related[0].ContainerId)
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		//if unallocated, allocate
-		peer.allocate(linkId, proposalRequest.TunnelId)
+		if err := peer.allocate(linkId, related[0].GetIfaceFor(linkId), containerPid, proposalRequest.TunnelId); err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		//accept proposal
 		proposal.status = http.StatusCreated
 	}
