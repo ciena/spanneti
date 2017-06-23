@@ -29,3 +29,12 @@ func (contNet ContainerNetwork) GetIfaceFor(linkId LinkID) string {
 	}
 	panic("linkId not found")
 }
+
+func (contNet ContainerNetwork) GetIfaceForOLT(olt OltLink) string {
+	for iface, id := range contNet.OLT {
+		if id == olt {
+			return iface
+		}
+	}
+	panic("linkId not found")
+}

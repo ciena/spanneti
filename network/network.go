@@ -11,10 +11,11 @@ import (
 )
 
 type Network struct {
-	graph    *graph.Graph
-	remote   *remote.RemoteManager
-	client   *client.Client
-	eventBus chan graph.LinkID
+	graph       *graph.Graph
+	remote      *remote.RemoteManager
+	client      *client.Client
+	eventBus    chan graph.LinkID
+	oltEventBus chan graph.OltLink
 }
 
 func New() *Network {
@@ -24,9 +25,10 @@ func New() *Network {
 	}
 
 	net := &Network{
-		graph:    graph.New(),
-		client:   client,
-		eventBus: make(chan graph.LinkID),
+		graph:       graph.New(),
+		client:      client,
+		eventBus:    make(chan graph.LinkID),
+		oltEventBus: make(chan graph.OltLink),
 	}
 	net.init()
 
@@ -111,29 +113,26 @@ func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetw
 }
 
 func (net *Network) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
-	//build a map of all the networks
-	linkIds := make(map[graph.LinkID]bool)
-	for _, containerNet := range containerNets {
-		for _, linkId := range containerNet.Links {
-			linkIds[linkId] = true
-		}
-	}
-
-	for linkId := range linkIds {
-		net.FireEvent(linkId)
-	}
+	net.pushContainersEvents(containerNets)
 }
 
 func (net *Network) pushContainersEvents(containerNets []graph.ContainerNetwork) {
 	//build a map of all the networks
 	linkIds := make(map[graph.LinkID]bool)
+	OLTs := make(map[graph.OltLink]bool)
 	for _, containerNet := range containerNets {
 		for _, linkId := range containerNet.Links {
 			linkIds[linkId] = true
+		}
+		for _, olt := range containerNet.OLT {
+			OLTs[olt] = true
 		}
 	}
 
 	for linkId := range linkIds {
 		net.FireEvent(linkId)
+	}
+	for olt := range OLTs {
+		net.FireOLTEvent(olt)
 	}
 }

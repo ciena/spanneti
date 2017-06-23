@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	"net"
 	"runtime"
 	"strconv"
 	"strings"
@@ -107,40 +106,40 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 		hostHandle.LinkDel(link)
 	}
 
-	fmt.Println("Create")
-	//ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
-	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
-	if err != nil {
-		return err
-	}
-
-	//create veth pair
-	link := &netlink.Vxlan{
-		LinkAttrs: netlink.LinkAttrs{
-			Name: "cord-vxlan-link",
-			//TODO: MTU: ???
-		},
-		VtepDevIndex: fabricLink.Attrs().Index,
-		VxlanId:      tunnelId,
-		Port:         4789,
-		SrcAddr:      net.ParseIP(peerFabricIp),
-	}
-	if err := hostHandle.LinkAdd(link); err != nil {
-		return err
-	}
-
-	//link, err := hostHandle.LinkByName("cord-vxlan-link")
+	//fmt.Println("Create")
+	////ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
+	//fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
 	//if err != nil {
-	//	return nil, nil, err
+	//	return err
 	//}
-	fmt.Println("Move NS")
-
-	//push interface into container
-	if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, containerHandle); err != nil {
-		return err
-	}
-	//get created devices
-	//inject into container
+	//
+	////create veth pair
+	//link := &netlink.Vxlan{
+	//	LinkAttrs: netlink.LinkAttrs{
+	//		Name:        "cord-vxlan-link",
+	//		ParentIndex: fabricLink.Attrs().Index,
+	//		//TODO: MTU: ???
+	//	},
+	//	VxlanId: tunnelId,
+	//	Port:    4789,
+	//	SrcAddr: net.ParseIP(peerFabricIp),
+	//}
+	//if err := hostHandle.LinkAdd(link); err != nil {
+	//	return err
+	//}
+	//
+	////link, err := hostHandle.LinkByName("cord-vxlan-link")
+	////if err != nil {
+	////	return nil, nil, err
+	////}
+	//fmt.Println("Move NS")
+	//
+	////push interface into container
+	//if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, containerHandle); err != nil {
+	//	return err
+	//}
+	////get created devices
+	////inject into container
 
 	return nil
 }
