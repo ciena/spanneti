@@ -27,17 +27,19 @@ func (net *Network) tryCreateOLTLink(nets []graph.ContainerNetwork, olt graph.Ol
 
 //tryCleanupOLTLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
 func (net *Network) tryCleanupOLTLink(nets []graph.ContainerNetwork, olt graph.OltLink) error {
-	if len(nets) != 1 {
-		fmt.Printf("Should clean OLT (%s)\n", olt)
-		containerPid, err := net.getContainerPid(nets[0].ContainerId)
-		if err != nil {
-			return err
-		}
-		if removed, err := resolver.DeleteContainerOltInterface(nets[0].GetIfaceForOLT(olt), containerPid); err != nil {
-			return err
-		} else if removed {
-			fmt.Printf("Removed OLT interface:\n  %s in %s\n", nets[0].GetIfaceForOLT(olt), nets[0].ContainerId[0:12])
-		}
-	}
+
+	//TODO: how to do this?
+	//if len(nets) != 1 {
+	//	fmt.Printf("Should clean OLT (%s)\n", olt)
+	//	containerPid, err := net.getContainerPid(nets[0].ContainerId)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	if removed, err := resolver.DeleteContainerOltInterface(nets[0].GetIfaceForOLT(olt), containerPid); err != nil {
+	//		return err
+	//	} else if removed {
+	//		fmt.Printf("Removed OLT interface:\n  %s in %s\n", nets[0].GetIfaceForOLT(olt), nets[0].ContainerId[0:12])
+	//	}
+	//}
 	return nil
 }

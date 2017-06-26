@@ -11,6 +11,17 @@ func SetupOltContainerLink(ethName string, containerPid int, sTag, cTag uint16) 
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	//get host handle
+	hostNs, err := netns.GetFromPid(1)
+	if err != nil {
+		return err
+	}
+	defer hostNs.Close()
+	hostHandle, err := netlink.NewHandleAt(hostNs)
+	if err != nil {
+		return err
+	}
+
 	//get container handle
 	containerNs, err := netns.GetFromPid(containerPid)
 	if err != nil {
@@ -22,139 +33,100 @@ func SetupOltContainerLink(ethName string, containerPid int, sTag, cTag uint16) 
 		return err
 	}
 
-	fmt.Println("Cleanup")
+	//get interface names
+	OUTER_NAME := fmt.Sprintf("%s.%d", FABRIC_INTERFACE_NAME, sTag)
+	INNER_NAME := fmt.Sprintf("%s.%d.%d", FABRIC_INTERFACE_NAME, sTag, cTag)
 
-	//clean up previous
-	if link, err := containerHandle.LinkByName(ethName); err == nil {
-		if _, isVlan := link.(*netlink.Vlan); isVlan {
-			//if an interface of the proper type already exists, there's nothing to do
-			fmt.Println("Interface", ethName, "already exists")
-			return nil
-		} else {
-			//if the container exists, but is not a vxlan link, delete it
-			if err := containerHandle.LinkDel(link); err != nil {
-				return err
+	//get fabric interface
+	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
+	if err != nil {
+		return err
+	}
+
+	//create or get fabric.SSS interface
+	outerLink, err := setupVlanAndInjectUnsafe(hostHandle, hostHandle, -1, OUTER_NAME, OUTER_NAME, sTag, fabricLink)
+	if err != nil {
+		return err
+	}
+
+	//create and inject final OLT interface
+	if _, err := setupVlanAndInjectUnsafe(hostHandle, containerHandle, containerPid, INNER_NAME, ethName, cTag, outerLink); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//setupVlanAndInjectUnsafe creates a vlan interface across namespaces (if an appropriate on doesn't already exist)
+func setupVlanAndInjectUnsafe(workingHandle, destHandle *netlink.Handle, destPid int, tempName, ethName string, vlanId uint16, parent netlink.Link) (netlink.Link, error) {
+	isCrossNamespace := workingHandle != destHandle
+
+	if link, err := tryRecoverVlanUnsafe(destHandle, ethName, parent); err != nil {
+		return nil, err
+	} else if link != nil {
+		return link, nil
+	}
+
+	if isCrossNamespace {
+		//delete any pre-existing devices
+		if link, err := workingHandle.LinkByName(tempName); err == nil {
+			if err := workingHandle.LinkDel(link); err != nil {
+				return nil, err
 			}
 		}
-	}
-
-	//ensure the interface for the outer tag exists
-	fabricLink, err := setupOuterVlanLinkUnsafe(sTag)
-	if err != nil {
-		return err
-	}
-
-	//get host handle
-	hostNs, err := netns.GetFromPid(1)
-	if err != nil {
-		return err
-	}
-	defer hostNs.Close()
-	hostHandle, err := netlink.NewHandleAt(hostNs)
-	if err != nil {
-		return err
-	}
-
-	NAME := fmt.Sprintf("fabric.%d.%d", sTag, cTag)
-
-	//delete any pre-existing devices
-	if link, err := hostHandle.LinkByName(NAME); err == nil {
-		hostHandle.LinkDel(link)
 	}
 
 	//create vlan interface
 	link := &netlink.Vlan{
 		LinkAttrs: netlink.LinkAttrs{
-			Name:        NAME,
-			ParentIndex: fabricLink.Attrs().Index,
+			Name:        tempName,
+			ParentIndex: parent.Attrs().Index,
 		},
-		VlanId: int(cTag),
+		VlanId: int(vlanId),
 	}
-	if err := hostHandle.LinkAdd(link); err != nil {
-		return err
+	if err := workingHandle.LinkAdd(link); err != nil {
+		return nil, err
 	}
 
-	//push interface into container
-	if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, containerHandle); err != nil {
-		return err
+	if isCrossNamespace {
+		//push interface into container
+		if err := moveNsUnsafe(link, ethName, destPid, workingHandle, destHandle); err != nil {
+			return nil, err
+		}
+	} else {
+		//bring up the interface
+		if err := workingHandle.LinkSetUp(link); err != nil {
+			return nil, err
+		}
 	}
-	//get created devices
-	//inject into container
+	fmt.Println("Setup", ethName, "OK")
 
-	return nil
+	return link, nil
 }
 
-func setupOuterVlanLinkUnsafe(vlanTag uint16) (netlink.Link, error) {
-	NAME := fmt.Sprintf("fabric.%d", vlanTag)
-
-	//get own handle
-	//ownNs, err := netns.Get()
-	//if err != nil {
-	//	return err
-	//}
-	//defer ownNs.Close()
-	//ownHandle, err := netlink.NewHandleAt(ownNs)
-	//if err != nil {
-	//	return err
-	//}
-
-	//get host handle
-	hostNs, err := netns.GetFromPid(1)
-	if err != nil {
-		return nil, err
-	}
-	defer hostNs.Close()
-	hostHandle, err := netlink.NewHandleAt(hostNs)
-	if err != nil {
-		return nil, err
-	}
-
-	//if already exists, nothing to do
-	if link, err := hostHandle.LinkByName(NAME); err == nil {
-		fmt.Println("Interface for the outer vlan already exists")
-		if link.Attrs().OperState != netlink.OperUp {
-			if err := hostHandle.LinkSetUp(link); err != nil {
+//tryRecoverExistingUnsafe attempts to recover the given interface, and returns it if found
+func tryRecoverVlanUnsafe(handle *netlink.Handle, ethName string, parent netlink.Link) (netlink.Link, error) {
+	//check for existing interfaces
+	if link, err := handle.LinkByName(ethName); err == nil {
+		//ensure correct type (vlan) and parent
+		if _, isVlan := link.(*netlink.Vlan); isVlan && link.Attrs().ParentIndex == parent.Attrs().Index {
+			//if the interface is set up correctly
+			fmt.Println("Interface", ethName, "already exists")
+			//ensure the interface is up
+			if link.Attrs().OperState != netlink.OperUp {
+				if err := handle.LinkSetUp(link); err != nil {
+					return nil, err
+				}
+			}
+			//already set up!
+			return link, nil
+		} else {
+			//if the link is not correctly configured, delete it
+			if err := handle.LinkDel(link); err != nil {
 				return nil, err
 			}
 		}
-		return link, nil
 	}
-
-	//ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
-	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
-	if err != nil {
-		return nil, err
-	}
-
-	//create veth pair
-	link := &netlink.Vlan{
-		LinkAttrs: netlink.LinkAttrs{
-			Name:        NAME,
-			ParentIndex: fabricLink.Attrs().Index,
-		},
-		VlanId: int(vlanTag),
-	}
-	if err := hostHandle.LinkAdd(link); err != nil {
-		return nil, err
-	}
-
-	//bring up the interface
-	if err := hostHandle.LinkSetUp(link); err != nil {
-		return nil, err
-	}
-
-	//link, err := hostHandle.LinkByName("cord-vxlan-link")
-	//if err != nil {
-	//	return nil, nil, err
-	//}
-	//fmt.Println("Move NS")
-
-	//push interface into container
-	//if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, ownHandle); err != nil {
-	//	return err
-	//}
-	//get created devices
-	//inject into container
-
-	return link, nil
+	//interface not found
+	return nil, nil
 }
