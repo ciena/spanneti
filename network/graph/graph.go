@@ -7,7 +7,7 @@ import (
 type Graph struct {
 	linkMap      map[LinkID]map[ContainerID]*ContainerNetwork
 	containerMap map[ContainerID]*ContainerNetwork
-	oltMap       map[OltLink]map[ContainerID]*ContainerNetwork
+	oltMap       map[uint16]map[uint16]map[ContainerID]*ContainerNetwork
 	mutex        sync.Mutex
 }
 
@@ -15,7 +15,7 @@ func New() *Graph {
 	return &Graph{
 		linkMap:      make(map[LinkID]map[ContainerID]*ContainerNetwork),
 		containerMap: make(map[ContainerID]*ContainerNetwork),
-		oltMap:       make(map[OltLink]map[ContainerID]*ContainerNetwork),
+		oltMap:       make(map[uint16]map[uint16]map[ContainerID]*ContainerNetwork),
 	}
 }
 
@@ -27,7 +27,7 @@ func (graph *Graph) PushContainerChanges(containerNet ContainerNetwork) (oldCont
 	oldContainerNet = graph.removeContainerUnsafe(containerNet.ContainerId)
 
 	//only add the new container if it has a non-empty containerNet
-	if len(containerNet.Links) > 0 {
+	if len(containerNet.Links) > 0 || len(containerNet.OLT) > 0 {
 		graph.addContainerUnsafe(containerNet)
 	}
 
@@ -50,10 +50,14 @@ func (graph *Graph) removeContainerUnsafe(containerId ContainerID) ContainerNetw
 
 		//remove every reference to the old netGraph from this olt-specific container map
 		for _, olt := range oldContainerNet.OLT {
-			delete(graph.oltMap[olt], containerId)
-			//if no containers reference this olt, remove the olt-specific container map
-			if len(graph.oltMap[olt]) == 0 {
-				delete(graph.oltMap, olt)
+			delete(graph.oltMap[olt.STag][olt.CTag], containerId)
+			//if no containers reference this c-tag, remove the c-tag-specific container map
+			if len(graph.oltMap[olt.STag][olt.CTag]) == 0 {
+				delete(graph.oltMap[olt.STag], olt.CTag)
+				//if no containers reference this s-tag, remove the s-tag-specific container map
+				if len(graph.oltMap[olt.STag]) == 0 {
+					delete(graph.oltMap, olt.STag)
+				}
 			}
 		}
 
@@ -78,13 +82,17 @@ func (graph *Graph) addContainerUnsafe(containerNet ContainerNetwork) {
 	}
 
 	for _, olt := range containerNet.OLT {
-		//create a olt-specific container map if one doesn't exist
-		if _, have := graph.oltMap[olt]; !have {
-			graph.oltMap[olt] = make(map[ContainerID]*ContainerNetwork)
+		//create a s-tag-specific c-tag map if one doesn't exist
+		if _, have := graph.oltMap[olt.STag]; !have {
+			graph.oltMap[olt.STag] = make(map[uint16]map[ContainerID]*ContainerNetwork)
+		}
+		//create a c-tag-specific container map if one doesn't exist
+		if _, have := graph.oltMap[olt.STag][olt.CTag]; !have {
+			graph.oltMap[olt.STag][olt.CTag] = make(map[ContainerID]*ContainerNetwork)
 		}
 
 		//add netGraph to the container map
-		graph.oltMap[olt][containerNet.ContainerId] = &containerNet
+		graph.oltMap[olt.STag][olt.CTag][containerNet.ContainerId] = &containerNet
 	}
 }
 
@@ -103,8 +111,8 @@ func (graph *Graph) GetRelatedToOlt(olt OltLink) []ContainerNetwork {
 	graph.mutex.Lock()
 	defer graph.mutex.Unlock()
 
-	relatedContainerNets := make([]ContainerNetwork, 0, len(graph.oltMap[olt]))
-	for _, containerNet := range graph.oltMap[olt] {
+	relatedContainerNets := make([]ContainerNetwork, 0, len(graph.oltMap[olt.STag][olt.CTag]))
+	for _, containerNet := range graph.oltMap[olt.STag][olt.CTag] {
 		relatedContainerNets = append(relatedContainerNets, *containerNet)
 	}
 	return relatedContainerNets

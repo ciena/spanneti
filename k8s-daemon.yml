@@ -35,10 +35,10 @@ apiVersion: v1
 metadata:
   name: spanneti
 spec:
+  selector:
+    app: spanneti
   type: ClusterIP
   clusterIP: None
   ports:
   - name: http
     port: 8080
-  selector:
-    app: spanneti
