@@ -42,6 +42,8 @@ func (net *Network) listenEvents() {
 			}
 
 		case olt := <-net.oltEventBus:
+			fmt.Println("Event for OLT:", olt)
+
 			nets := net.graph.GetRelatedToOlt(olt)
 
 			if err := net.tryCreateOLTLink(nets, olt); err != nil {
@@ -49,6 +51,12 @@ func (net *Network) listenEvents() {
 			}
 
 			if err := net.tryCleanupOLTLink(nets, olt); err != nil {
+				fmt.Println(err)
+			}
+
+			sTagNets := net.graph.GetRelatedToSTag(olt.STag)
+
+			if err := net.tryCleanupSharedOLTLink(sTagNets, olt.STag); err != nil {
 				fmt.Println(err)
 			}
 		}

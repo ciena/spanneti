@@ -117,3 +117,16 @@ func (graph *Graph) GetRelatedToOlt(olt OltLink) []ContainerNetwork {
 	}
 	return relatedContainerNets
 }
+
+func (graph *Graph) GetRelatedToSTag(sTag uint16) []ContainerNetwork {
+	graph.mutex.Lock()
+	defer graph.mutex.Unlock()
+
+	relatedContainerNets := make([]ContainerNetwork, 0, len(graph.oltMap[sTag]))
+	for _, containerMap := range graph.oltMap[sTag] {
+		for _, containerNet := range containerMap {
+			relatedContainerNets = append(relatedContainerNets, *containerNet)
+		}
+	}
+	return relatedContainerNets
+}

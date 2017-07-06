@@ -43,3 +43,14 @@ func (net *Network) tryCleanupOLTLink(nets []graph.ContainerNetwork, olt graph.O
 	//}
 	return nil
 }
+
+//tryCleanupSharedSTagLink checks if this s-tag has zero containers, and if so, deletes the shared interface
+func (net *Network) tryCleanupSharedOLTLink(sTagNets []graph.ContainerNetwork, sTag uint16) error {
+	if len(sTagNets) == 0 {
+		fmt.Printf("Should clean shared interface (fabric.%d)\n", sTag)
+		if err := resolver.DeleteSharedOltInterface(sTag); err != nil {
+			return err
+		}
+	}
+	return nil
+}
