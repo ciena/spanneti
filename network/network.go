@@ -3,6 +3,7 @@ package network
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
@@ -52,16 +53,24 @@ func (net *Network) init() {
 		net.graph.PushContainerChanges(netGraphs[i])
 	}
 
-	//2. - start serving requests
+	//2. - cleanup unused interfaces that may have been created beforehand
+	for _, sTag := range resolver.GetSharedOLTInterfaces() {
+		sTagNets := net.graph.GetRelatedToSTag(sTag)
+		if err := net.tryCleanupSharedOLTLink(sTagNets, sTag); err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	//3. - start serving requests
 	net.remote, err = remote.New(net.graph, net.client, net.eventBus)
 	if err != nil {
 		panic(err)
 	}
 
-	//3. - start listening for graph changes
+	//4. - start listening for graph changes
 	go net.listenEvents()
 
-	//4. - fire all the events for the now-ready network graph
+	//5. - fire all the events for the now-ready network graph
 	net.pushContainersEvents(netGraphs)
 }
 

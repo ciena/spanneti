@@ -18,7 +18,7 @@ func (net *Network) tryCreateOLTLink(nets []graph.ContainerNetwork, olt graph.Ol
 			return err
 		}
 
-		if err := resolver.SetupOltContainerLink(nets[0].GetIfaceForOLT(olt), containerPid, olt.STag, olt.CTag); err != nil {
+		if err := resolver.SetupOLTContainerLink(nets[0].GetIfaceForOLT(olt), containerPid, olt.STag, olt.CTag); err != nil {
 			return err
 		}
 	}
@@ -48,7 +48,7 @@ func (net *Network) tryCleanupOLTLink(nets []graph.ContainerNetwork, olt graph.O
 func (net *Network) tryCleanupSharedOLTLink(sTagNets []graph.ContainerNetwork, sTag uint16) error {
 	if len(sTagNets) == 0 {
 		fmt.Printf("Should clean shared interface (fabric.%d)\n", sTag)
-		if err := resolver.DeleteSharedOltInterface(sTag); err != nil {
+		if err := resolver.DeleteSharedOLTInterface(sTag); err != nil {
 			return err
 		}
 	}

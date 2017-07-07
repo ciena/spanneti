@@ -7,7 +7,7 @@ import (
 	"runtime"
 )
 
-func SetupOltContainerLink(ethName string, containerPid int, sTag, cTag uint16) error {
+func SetupOLTContainerLink(ethName string, containerPid int, sTag, cTag uint16) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -53,7 +53,6 @@ func SetupOltContainerLink(ethName string, containerPid int, sTag, cTag uint16) 
 	if _, err := setupVlanAndInjectUnsafe(hostHandle, containerHandle, containerPid, INNER_NAME, ethName, cTag, outerLink); err != nil {
 		return err
 	}
-
 	return nil
 }
 
