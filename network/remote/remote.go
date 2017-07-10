@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"context"
 	"errors"
@@ -13,15 +14,14 @@ import (
 )
 
 type RemoteManager struct {
-	peerId      peerID
+	peer.PeerManager
+	peerId      peer.PeerID
 	fabricIp    string
 	client      *client.Client
-	peer        map[peerID]*remotePeer
-	mutex       sync.Mutex
 	resyncMutex sync.Mutex
 	graph       *graph.Graph
 	eventBus    chan<- graph.LinkID
-	outOfSync   map[peerID]map[graph.LinkID]bool
+	outOfSync   map[peer.PeerID]map[graph.LinkID]bool
 }
 
 func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID) (*RemoteManager, error) {
@@ -33,25 +33,25 @@ func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID) (*
 	fmt.Println(ip)
 
 	man := &RemoteManager{
-		peerId:    determineOwnId(),
-		fabricIp:  ip,
-		client:    client,
-		peer:      make(map[peerID]*remotePeer),
-		graph:     network,
-		eventBus:  ch,
-		outOfSync: make(map[peerID]map[graph.LinkID]bool),
+		PeerManager: peer.NewManager(),
+		peerId:      determineOwnId(),
+		fabricIp:    ip,
+		client:      client,
+		graph:       network,
+		eventBus:    ch,
+		outOfSync:   make(map[peer.PeerID]map[graph.LinkID]bool),
 	}
 
 	go man.runServer()
 	return man, nil
 }
 
-func determineOwnId() peerID {
-	var ownId peerID
+func determineOwnId() peer.PeerID {
+	var ownId peer.PeerID
 	for ownId == "" {
 		fmt.Print("Determining own IP... ")
 
-		peerIps, err := lookupPeerIps()
+		peerIps, err := LookupPeerIps()
 		if err != nil {
 			panic(err)
 		}
@@ -65,7 +65,7 @@ func determineOwnId() peerID {
 			if ipnet, ok := iface.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 				if ipnet.IP.To4() != nil {
 					for _, peerIp := range peerIps {
-						if peerIp == peerID(ipnet.IP.String()) {
+						if peerIp == peer.PeerID(ipnet.IP.String()) {
 							ownId = peerIp
 						}
 					}
@@ -108,13 +108,14 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 	setup := response.Setup
 
 	for !localSetup {
+		var fabricIp string
 		for !setup {
 			//
 			// ensure the suggested tunnelId is valid on our side
 			//
 
 			var err error
-			setup, tunnelId, err = man.requestSetup(peerId, linkId, tunnelId)
+			setup, tunnelId, fabricIp, err = man.requestSetup(peerId, linkId, tunnelId)
 			if err != nil {
 				man.unableToSync(peerId, linkId)
 				return false, err
@@ -122,26 +123,18 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 		}
 
 		//now that it's setup remotely, try to setup locally
-
-		peer, err := man.getPeer(peerId)
+		allocated, err := man.TryAllocate(peerId, linkId, ethName, containerPid, tunnelId, fabricIp)
 		if err != nil {
 			man.unableToSync(peerId, linkId)
 			return false, err
 		}
-		peer.mutex.Lock()
-		if currentLinkId, have := peer.linkFor[tunnelId]; !have || currentLinkId == linkId {
-			err := peer.allocate(linkId, ethName, containerPid, tunnelId)
-			peer.mutex.Unlock()
 
-			if err != nil {
-				man.unableToSync(peerId, linkId)
-				return false, err
-			}
+		if allocated {
+			//setup complete!
 			localSetup = true
 		} else {
 			//go to next available tunnel ID
-			tunnel := peer.nextAvailableTunnelId(tunnelId)
-			peer.mutex.Unlock()
+			tunnel := man.NextAvailableTunnelId(tunnelId)
 
 			if tunnel == nil {
 				man.unableToSync(peerId, linkId)
@@ -163,7 +156,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 	deleted = false
 
-	peers, err := lookupPeerIps()
+	peers, err := LookupPeerIps()
 	if err != nil {
 		panic(err)
 	}
@@ -174,17 +167,11 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 			continue
 		}
 
-		peer, err := man.getPeer(peerId)
-		if err != nil {
+		if err := man.Deallocate(peerId, linkId); err != nil {
 			man.unableToSync(peerId, linkId)
 			fmt.Println(err)
 			continue
 		}
-		peer.mutex.Lock()
-		if err := peer.deallocate(linkId); err != nil {
-			fmt.Println(err)
-		}
-		peer.mutex.Unlock()
 
 		if wasDeleted, err := man.requestDelete(peerId, linkId); err != nil {
 			man.unableToSync(peerId, linkId)
@@ -197,11 +184,11 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 	return
 }
 
-func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peerID, []getResponse) {
-	var peerIps []peerID
+func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []getResponse) {
+	var peerIps []peer.PeerID
 	var possibilities []getResponse
 
-	peers, err := lookupPeerIps()
+	peers, err := LookupPeerIps()
 	if err != nil {
 		panic(err)
 	}

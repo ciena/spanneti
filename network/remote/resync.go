@@ -1,13 +1,14 @@
 package remote
 
 import (
-	"fmt"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
+	"fmt"
 	"time"
 )
 
 //unableToSync adds a link to the outOfSync list for the given peer
-func (man *RemoteManager) unableToSync(peerId peerID, linkId graph.LinkID) {
+func (man *RemoteManager) unableToSync(peerId peer.PeerID, linkId graph.LinkID) {
 	if peerId == man.peerId {
 		panic("unableToSync() called with self as peer.  Are you sure you want to do that?")
 	}

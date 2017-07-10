@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	"net"
 	"runtime"
 	"strconv"
 	"strings"
@@ -82,6 +83,7 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 			return nil
 		} else {
 			//if the container exists, but is not a vxlan link, delete it
+			fmt.Println("deleting existing", ethName)
 			if err := containerHandle.LinkDel(link); err != nil {
 				return err
 			}
@@ -103,49 +105,56 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 
 	//delete any pre-existing devices
 	if link, err := hostHandle.LinkByName("cord-vxlan-link"); err == nil {
-		hostHandle.LinkDel(link)
+		if err := hostHandle.LinkDel(link); err != nil {
+			return err
+		}
 	}
 
-	//fmt.Println("Create")
-	////ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
-	//fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	////create veth pair
-	//link := &netlink.Vxlan{
-	//	LinkAttrs: netlink.LinkAttrs{
-	//		Name:        "cord-vxlan-link",
-	//		ParentIndex: fabricLink.Attrs().Index,
-	//		//TODO: MTU: ???
-	//	},
-	//	VxlanId: tunnelId,
-	//	Port:    4789,
-	//	SrcAddr: net.ParseIP(peerFabricIp),
-	//}
-	//if err := hostHandle.LinkAdd(link); err != nil {
-	//	return err
-	//}
-	//
-	////link, err := hostHandle.LinkByName("cord-vxlan-link")
-	////if err != nil {
-	////	return nil, nil, err
-	////}
-	//fmt.Println("Move NS")
-	//
-	////push interface into container
-	//if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, containerHandle); err != nil {
-	//	return err
-	//}
-	////get created devices
-	////inject into container
+	//ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
+	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Create")
+
+	fmt.Println(tunnelId, peerFabricIp, fabricLink.Attrs().Index)
+
+	//ip link add vxlan0 type vxlan id 0 group 10.6.2.3 dev fabric dstport 4789
+
+	//create veth pair
+	link := &netlink.Vxlan{
+		LinkAttrs: netlink.LinkAttrs{
+			Name: "cord-vxlan-link",
+			//TODO: MTU: ???
+		},
+		VxlanId:      tunnelId,
+		Port:         4789,
+		Group:        net.ParseIP(peerFabricIp),
+		VtepDevIndex: fabricLink.Attrs().Index,
+		//what is required for a pure point-to-point L2 network?
+		Learning: true,
+		L2miss:   true,
+		L3miss:   false,
+	}
+	if err := hostHandle.LinkAdd(link); err != nil {
+		return err
+	}
+
+	fmt.Println("Move NS")
+
+	//push interface into container
+	if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, containerHandle); err != nil {
+		return err
+	}
+	//get created devices
+	//inject into container
 
 	return nil
 }
 
-func TeardownRemoteContainerLink(peerFabricIp string, linkId graph.LinkID) error {
-	fmt.Println("Dummy teardown", linkId, "to", peerFabricIp)
+func TeardownRemoteContainerLink(linkId graph.LinkID) error {
+	fmt.Println("Dummy teardown", linkId)
 	return nil
 }
 

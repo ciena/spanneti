@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -14,7 +15,7 @@ import (
 )
 
 //requestInfo GETs peer info
-func (man *RemoteManager) requestInfo(peerIp peerID) (infoResponse, error) {
+func (man *RemoteManager) requestInfo(peerIp peer.PeerID) (infoResponse, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -57,7 +58,7 @@ func (man *RemoteManager) requestInfo(peerIp peerID) (infoResponse, error) {
 }
 
 //requestState GETs a link
-func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getResponse, bool, error) {
+func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) (getResponse, bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -104,7 +105,7 @@ func (man *RemoteManager) requestState(peerIp peerID, linkId graph.LinkID) (getR
 }
 
 //requestSetup PUTs a link
-func (man *RemoteManager) requestSetup(peerIp peerID, linkId graph.LinkID, tunnelId tunnelID) (bool, tunnelID, error) {
+func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, tunnelId peer.TunnelID) (bool, peer.TunnelID, string, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -114,9 +115,9 @@ func (man *RemoteManager) requestSetup(peerIp peerID, linkId graph.LinkID, tunne
 		},
 	}
 
-	data, err := json.Marshal(&linkProposal{TunnelId: tunnelId})
+	data, err := json.Marshal(&linkProposal{TunnelId: tunnelId, FabricIp: man.fabricIp})
 	if err != nil {
-		return false, tunnelId, err
+		return false, tunnelId, "", err
 	}
 
 	request, err := http.NewRequest(
@@ -124,46 +125,51 @@ func (man *RemoteManager) requestSetup(peerIp peerID, linkId graph.LinkID, tunne
 		"http://"+string(peerIp)+":8080/peer/"+url.PathEscape(string(man.peerId))+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		bytes.NewReader(data))
 	if err != nil {
-		return false, tunnelId, err
+		return false, tunnelId, "", err
 	}
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return false, tunnelId, err
+		return false, tunnelId, "", err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return false, tunnelId, errors.New("LinkID does not exist on remote peer, linkup failed.")
+		return false, tunnelId, "", errors.New("LinkID does not exist on remote peer, linkup failed.")
 	}
 
-	data, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return false, tunnelId, err
-	}
+	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusConflict {
 
-	var response linkProposalResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return false, tunnelId, err
-	}
-
-	if resp.StatusCode == http.StatusCreated {
-		// yay!  created!
-		return true, tunnelId, nil
-
-	} else if resp.StatusCode == http.StatusConflict {
-		if response.TryTunnelId == nil {
-			return false, 0, errors.New("Status was 409 CONFLICT, but try-tunnel-id was not defined. Out of tunnel IDs?")
+		data, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return false, tunnelId, "", err
 		}
 
-		//retry setup with this id
-		return false, *response.TryTunnelId, nil
+		var response linkProposalResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return false, tunnelId, "", err
+		}
+
+		if resp.StatusCode == http.StatusCreated {
+			// yay!  created!
+			return true, tunnelId, response.FabricIp, nil
+		}
+
+		if resp.StatusCode == http.StatusConflict {
+			//return the suggested tunnelId
+			if response.TryTunnelId == nil {
+				return false, 0, "", errors.New("Status was 409 CONFLICT, but try-tunnel-id was not defined. Out of tunnel IDs?")
+			}
+
+			//retry setup with this id
+			return false, *response.TryTunnelId, response.FabricIp, nil
+		}
 	}
 
-	return false, tunnelId, errors.New("Unexpected status code:" + resp.Status)
+	return false, tunnelId, "", errors.New("Unexpected status code:" + resp.Status)
 }
 
 //requestDelete DELETES a link
-func (man *RemoteManager) requestDelete(peerId peerID, linkId graph.LinkID) (bool, error) {
+func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID) (bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -193,7 +199,7 @@ func (man *RemoteManager) requestDelete(peerId peerID, linkId graph.LinkID) (boo
 }
 
 //tryResyncUnsafe tries to have the other side resync the given list of links
-func (man *RemoteManager) tryResyncUnsafe(peerId peerID, linkIds []graph.LinkID) error {
+func (man *RemoteManager) tryResyncUnsafe(peerId peer.PeerID, linkIds []graph.LinkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
