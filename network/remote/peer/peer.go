@@ -12,7 +12,7 @@ type TunnelID uint32
 const NUM_TUNNEL_IDS = 1 << 24
 
 type remotePeer struct {
-	peerId    PeerID
+	fabricIp  string
 	tunnelFor map[graph.LinkID]TunnelID
 	linkFor   map[TunnelID]graph.LinkID
 }
@@ -21,12 +21,12 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, ethName string, containerP
 	//cleanup old relationships
 	if oldTunnelId, have := peer.tunnelFor[linkId]; have {
 		if oldTunnelId == tunnelId {
-			fmt.Println("Alreay set up:", linkId, "to", peer.peerId, "via", tunnelId)
+			fmt.Println("Alreay set up:", linkId, "to", fabricIp, "via", tunnelId)
 			return nil
 		}
 		delete(peer.linkFor, oldTunnelId)
 		delete(peer.tunnelFor, linkId)
-		if err := resolver.TeardownRemoteContainerLink(linkId); err != nil {
+		if err := resolver.TeardownRemoteContainerLink(ethName, containerPid); err != nil {
 			return err
 		}
 	}
@@ -35,7 +35,7 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, ethName string, containerP
 	peer.tunnelFor[linkId] = tunnelId
 	peer.linkFor[tunnelId] = linkId
 
-	fmt.Printf("Will setup link %s:%s to %s(%s) via %d\n", ethName, linkId, fabricIp, peer.peerId, tunnelId)
+	fmt.Printf("Will setup link %s:%s to %s via %d\n", ethName, linkId, fabricIp, tunnelId)
 	err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), fabricIp)
 	if err != nil {
 		delete(peer.tunnelFor, linkId)
@@ -44,12 +44,12 @@ func (peer *remotePeer) allocate(linkId graph.LinkID, ethName string, containerP
 	return err
 }
 
-func (peer *remotePeer) deallocate(linkId graph.LinkID) error {
+func (peer *remotePeer) deallocate(linkId graph.LinkID, ethName string, containerPid int) error {
 	//cleanup old relationships
 	if tunnelId, have := peer.tunnelFor[linkId]; have {
 		delete(peer.linkFor, tunnelId)
 		delete(peer.tunnelFor, linkId)
-		return resolver.TeardownRemoteContainerLink(linkId)
+		return resolver.TeardownRemoteContainerLink(ethName, containerPid)
 	}
 	return nil
 }

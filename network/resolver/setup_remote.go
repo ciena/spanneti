@@ -1,15 +1,12 @@
 package resolver
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"errors"
 	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"net"
 	"runtime"
-	"strconv"
-	"strings"
 	"syscall"
 )
 
@@ -53,14 +50,7 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	fmt.Println("Dummy setup", ethName, "to", peerFabricIp, "via", tunnelId)
-
-	name, err := fabricInterfaceName(peerFabricIp, tunnelId)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(name)
+	fmt.Println("Setup", ethName, "to", peerFabricIp, "via", tunnelId)
 
 	//get container handle
 	containerNs, err := netns.GetFromPid(containerPid)
@@ -72,8 +62,6 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Cleanup")
 
 	//clean up previous
 	if link, err := containerHandle.LinkByName(ethName); err == nil {
@@ -101,8 +89,6 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 		return err
 	}
 
-	fmt.Println("Cleanup #2")
-
 	//delete any pre-existing devices
 	if link, err := hostHandle.LinkByName("cord-vxlan-link"); err == nil {
 		if err := hostHandle.LinkDel(link); err != nil {
@@ -115,10 +101,6 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Create")
-
-	fmt.Println(tunnelId, peerFabricIp, fabricLink.Attrs().Index)
 
 	//ip link add vxlan0 type vxlan id 0 group 10.6.2.3 dev fabric dstport 4789
 
@@ -141,8 +123,6 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 		return err
 	}
 
-	fmt.Println("Move NS")
-
 	//push interface into container
 	if err := moveNsUnsafe(link, ethName, containerPid, hostHandle, containerHandle); err != nil {
 		return err
@@ -151,35 +131,4 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	//inject into container
 
 	return nil
-}
-
-func TeardownRemoteContainerLink(linkId graph.LinkID) error {
-	fmt.Println("Dummy teardown", linkId)
-	return nil
-}
-
-func fabricInterfaceName(ip string, tunnelId int) (string, error) {
-	pieces := strings.Split(ip, ".")
-	if len(pieces) < 4 {
-		return "", errors.New("Invalid fabric IP: " + ip)
-	}
-
-	num0, err := strconv.Atoi(pieces[0])
-	if err != nil {
-		return "", err
-	}
-	num1, err := strconv.Atoi(pieces[1])
-	if err != nil {
-		return "", err
-	}
-	num2, err := strconv.Atoi(pieces[2])
-	if err != nil {
-		return "", err
-	}
-	num3, err := strconv.Atoi(pieces[3])
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("f%08X%06X", num0<<24+num1<<16+num2<<8+num3, tunnelId), nil
 }

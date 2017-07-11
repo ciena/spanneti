@@ -12,6 +12,11 @@ func (net *Network) FireEvent(linkId graph.LinkID) {
 
 func (net *Network) FireOLTEvent(olt graph.OltLink) {
 	net.oltEventBus <- olt
+	net.FireSTagEvent(olt.STag)
+}
+
+func (net *Network) FireSTagEvent(sTag uint16) {
+	net.sTagEventBus <- sTag
 }
 
 func (net *Network) listenEvents() {
@@ -54,9 +59,12 @@ func (net *Network) listenEvents() {
 				fmt.Println(err)
 			}
 
-			sTagNets := net.graph.GetRelatedToSTag(olt.STag)
+		case sTag := <-net.sTagEventBus:
+			fmt.Println("Event for s-tag:", sTag)
 
-			if err := net.tryCleanupSharedOLTLink(sTagNets, olt.STag); err != nil {
+			sTagNets := net.graph.GetRelatedToSTag(sTag)
+
+			if err := net.tryCleanupSharedOLTLink(sTagNets, sTag); err != nil {
 				fmt.Println(err)
 			}
 		}

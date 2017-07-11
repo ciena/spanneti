@@ -13,14 +13,11 @@ import (
 
 func (man *RemoteManager) runServer() {
 	r := mux.NewRouter()
-	r.HandleFunc("/info", man.infoHandler).Methods(http.MethodGet)
-	r.HandleFunc("/peer/{peerId}/resync", man.resyncHandler).Methods(http.MethodPost)
+	r.HandleFunc("/peer/{fabricIp}/resync", man.resyncHandler).Methods(http.MethodPost)
 	//r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
-	r.HandleFunc("/peer/{peerId}/link/", man.updateLinksHandler).Methods(http.MethodPut)
-	r.HandleFunc("/peer/{peerId}/link/", man.deleteLinksHandler).Methods(http.MethodDelete)
-	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.getLinkHandler).Methods(http.MethodGet)
-	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
-	r.HandleFunc("/peer/{peerId}/link/{linkId}", man.deleteLinkHandler).Methods(http.MethodDelete)
+	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.getLinkHandler).Methods(http.MethodGet)
+	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
+	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.deleteLinkHandler).Methods(http.MethodDelete)
 
 	srv := &http.Server{
 		ReadTimeout:  100 * time.Millisecond,
@@ -29,24 +26,6 @@ func (man *RemoteManager) runServer() {
 		Addr:         string(man.peerId) + ":8080",
 	}
 	srv.ListenAndServe()
-}
-
-type infoResponse struct {
-	FabricIp string `json:"fabric-ip"`
-}
-
-func (man *RemoteManager) infoHandler(w http.ResponseWriter, r *http.Request) {
-	response := infoResponse{
-		FabricIp: man.fabricIp,
-	}
-	if data, err := json.Marshal(response); err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	} else {
-		w.WriteHeader(http.StatusOK)
-		w.Write(data)
-	}
 }
 
 type linkResponse struct {
@@ -113,20 +92,13 @@ func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) 
 //	w.Write([]byte{']'})
 //}
 
-func (man *RemoteManager) updateLinksHandler(w http.ResponseWriter, r *http.Request) {
-
-}
-func (man *RemoteManager) deleteLinksHandler(w http.ResponseWriter, r *http.Request) {
-
-}
-
 type getResponse struct {
 	TunnelId peer.TunnelID `json:"tunnel-id"`
 	Setup    bool          `json:"setup"`
 }
 
 func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request) {
-	peerId := peer.PeerID(mux.Vars(r)["peerId"])
+	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := graph.LinkID(mux.Vars(r)["linkId"])
 
 	if related := man.graph.GetRelatedTo(linkId); len(related) != 1 {
@@ -138,7 +110,7 @@ func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request)
 	response := getResponse{}
 
 	//if this side already has a tunnel set up
-	if tunnelId, allocated := man.TunnelFor(peerId, linkId); allocated {
+	if tunnelId, allocated := man.TunnelFor(fabricIp, linkId); allocated {
 		//return existing
 		response.TunnelId = *tunnelId
 		response.Setup = true
@@ -153,13 +125,13 @@ func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else {
+		w.Header().Add("fabric-ip", man.fabricIp)
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
 	}
 }
 
 type linkProposal struct {
-	FabricIp string        `json:"fabric-ip"`
 	TunnelId peer.TunnelID `json:"tunnel-id"`
 	//if a tunnelId is given, we must respond with the same tunnelId (signalling setup complete), or an unused tunnelId
 	//if a tunnelId is not given, we must respond with the current tunnelId (if defined), else an empty tunnelId
@@ -172,7 +144,8 @@ type linkProposalResponse struct {
 }
 
 func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Request) {
-	linkId := graph.LinkID(graph.LinkID(mux.Vars(r)["linkId"]))
+	fabricIp := mux.Vars(r)["fabricIp"]
+	linkId := graph.LinkID(mux.Vars(r)["linkId"])
 
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -201,8 +174,6 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	peerId := peer.PeerID(mux.Vars(r)["peerId"])
-
 	containerPid, err := man.getContainerPid(related[0].ContainerId)
 	if err != nil {
 		fmt.Println(err)
@@ -210,7 +181,7 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	allocated, err := man.TryAllocate(peerId, linkId, related[0].GetIfaceFor(linkId), containerPid, proposal.TunnelId, proposal.FabricIp)
+	allocated, err := man.TryAllocate(linkId, related[0].GetIfaceFor(linkId), containerPid, proposal.TunnelId, fabricIp)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -218,7 +189,6 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	if allocated {
-		proposal.FabricIp = man.fabricIp
 		proposal.status = http.StatusCreated
 	} else {
 		proposal.TryTunnelId = man.NextAvailableTunnelId(proposalRequest.TunnelId)
@@ -231,20 +201,32 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else {
+		w.Header().Add("fabric-ip", man.fabricIp)
 		w.WriteHeader(proposal.status)
 		w.Write(data)
 	}
 }
 
 func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Request) {
-	peerId := peer.PeerID(mux.Vars(r)["peerId"])
+	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := graph.LinkID(mux.Vars(r)["linkId"])
 
-	if err := man.Deallocate(peerId, linkId); err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	nets := man.graph.GetRelatedTo(linkId)
+	if len(nets) == 1 {
+		containerPid, err := man.getContainerPid(nets[0].ContainerId)
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if err := man.Deallocate(fabricIp, linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
+	w.Header().Add("fabric-ip", man.fabricIp)
 	w.WriteHeader(http.StatusOK)
 }

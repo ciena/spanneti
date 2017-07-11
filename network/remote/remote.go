@@ -24,7 +24,7 @@ type RemoteManager struct {
 	outOfSync   map[peer.PeerID]map[graph.LinkID]bool
 }
 
-func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID) (*RemoteManager, error) {
+func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, netGraphs []graph.ContainerNetwork) (*RemoteManager, error) {
 	fmt.Print("Determining fabric IP... ")
 	ip, err := resolver.DetermineFabricIp()
 	if err != nil {
@@ -40,6 +40,18 @@ func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID) (*
 		graph:       network,
 		eventBus:    ch,
 		outOfSync:   make(map[peer.PeerID]map[graph.LinkID]bool),
+	}
+
+	//scan for existing remote links
+	for _, netGraph := range netGraphs {
+		containerPid, err := man.getContainerPid(netGraph.ContainerId)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		for ethName, linkId := range netGraph.Links {
+			man.FindExisting(linkId, ethName, containerPid)
+		}
 	}
 
 	go man.runServer()
@@ -88,7 +100,7 @@ func determineOwnId() peer.PeerID {
 //provision on remote
 //provision locally
 func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, containerPid int) (bool, error) {
-	peerIps, possibilities := man.getPossibilities(linkId)
+	peerIps, fabricIps, possibilities := man.getPossibilities(linkId)
 
 	if len(possibilities) != 1 {
 		if len(possibilities) == 0 {
@@ -100,6 +112,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 	}
 
 	peerId := peerIps[0]
+	fabricIp := fabricIps[0]
 	response := possibilities[0]
 
 	tunnelId := response.TunnelId
@@ -108,14 +121,13 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 	setup := response.Setup
 
 	for !localSetup {
-		var fabricIp string
 		for !setup {
 			//
 			// ensure the suggested tunnelId is valid on our side
 			//
 
 			var err error
-			setup, tunnelId, fabricIp, err = man.requestSetup(peerId, linkId, tunnelId)
+			setup, tunnelId, err = man.requestSetup(peerId, linkId, tunnelId)
 			if err != nil {
 				man.unableToSync(peerId, linkId)
 				return false, err
@@ -123,7 +135,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 		}
 
 		//now that it's setup remotely, try to setup locally
-		allocated, err := man.TryAllocate(peerId, linkId, ethName, containerPid, tunnelId, fabricIp)
+		allocated, err := man.TryAllocate(linkId, ethName, containerPid, tunnelId, fabricIp)
 		if err != nil {
 			man.unableToSync(peerId, linkId)
 			return false, err
@@ -143,7 +155,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 				tunnelId = *tunnel
 			}
 
-			if _, err := man.requestDelete(peerId, linkId); err != nil {
+			if _, _, err := man.requestDelete(peerId, linkId); err != nil {
 				man.unableToSync(peerId, linkId)
 				return false, err
 			}
@@ -153,7 +165,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 	return true, nil
 }
 
-func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
+func (man *RemoteManager) TryCleanup(linkId graph.LinkID, ethName string, containerPid int) (deleted bool) {
 	deleted = false
 
 	peers, err := LookupPeerIps()
@@ -167,25 +179,25 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) (deleted bool) {
 			continue
 		}
 
-		if err := man.Deallocate(peerId, linkId); err != nil {
-			man.unableToSync(peerId, linkId)
-			fmt.Println(err)
-			continue
-		}
-
-		if wasDeleted, err := man.requestDelete(peerId, linkId); err != nil {
+		if wasDeleted, fabricIp, err := man.requestDelete(peerId, linkId); err != nil {
 			man.unableToSync(peerId, linkId)
 			fmt.Println(err)
 			continue
 		} else if wasDeleted {
+			if err := man.Deallocate(fabricIp, linkId, ethName, containerPid); err != nil {
+				man.unableToSync(peerId, linkId)
+				fmt.Println(err)
+				continue
+			}
 			deleted = true
 		}
 	}
 	return
 }
 
-func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []getResponse) {
+func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []string, []getResponse) {
 	var peerIps []peer.PeerID
+	var fabricIps []string
 	var possibilities []getResponse
 
 	peers, err := LookupPeerIps()
@@ -199,7 +211,7 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, 
 			continue
 		}
 
-		response, haveLinkId, err := man.requestState(peerId, linkId)
+		response, fabricIp, haveLinkId, err := man.requestState(peerId, linkId)
 		if err != nil {
 			man.unableToSync(peerId, linkId)
 			fmt.Println(err)
@@ -208,11 +220,12 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, 
 
 		if haveLinkId {
 			peerIps = append(peerIps, peerId)
+			fabricIps = append(fabricIps, fabricIp)
 			possibilities = append(possibilities, response)
 		}
 	}
 
-	return peerIps, possibilities
+	return peerIps, fabricIps, possibilities
 }
 
 func (man *RemoteManager) getContainerPid(containerId graph.ContainerID) (int, error) {

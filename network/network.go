@@ -12,11 +12,12 @@ import (
 )
 
 type Network struct {
-	graph       *graph.Graph
-	remote      *remote.RemoteManager
-	client      *client.Client
-	eventBus    chan graph.LinkID
-	oltEventBus chan graph.OltLink
+	graph        *graph.Graph
+	remote       *remote.RemoteManager
+	client       *client.Client
+	eventBus     chan graph.LinkID
+	oltEventBus  chan graph.OltLink
+	sTagEventBus chan uint16
 }
 
 func New() *Network {
@@ -26,10 +27,11 @@ func New() *Network {
 	}
 
 	net := &Network{
-		graph:       graph.New(),
-		client:      client,
-		eventBus:    make(chan graph.LinkID),
-		oltEventBus: make(chan graph.OltLink),
+		graph:        graph.New(),
+		client:       client,
+		eventBus:     make(chan graph.LinkID),
+		oltEventBus:  make(chan graph.OltLink),
+		sTagEventBus: make(chan uint16),
 	}
 	net.init()
 
@@ -53,22 +55,19 @@ func (net *Network) init() {
 		net.graph.PushContainerChanges(netGraphs[i])
 	}
 
-	//2. - cleanup unused interfaces that may have been created beforehand
-	for _, sTag := range resolver.GetSharedOLTInterfaces() {
-		sTagNets := net.graph.GetRelatedToSTag(sTag)
-		if err := net.tryCleanupSharedOLTLink(sTagNets, sTag); err != nil {
-			fmt.Println(err)
-		}
-	}
-
-	//3. - start serving requests
-	net.remote, err = remote.New(net.graph, net.client, net.eventBus)
+	//2. - start serving requests
+	net.remote, err = remote.New(net.graph, net.client, net.eventBus, netGraphs)
 	if err != nil {
 		panic(err)
 	}
 
-	//4. - start listening for graph changes
+	//3. - start listening for graph changes
 	go net.listenEvents()
+
+	//4. - cleanup unused interfaces that may have been created beforehand
+	for _, sTag := range resolver.GetSharedOLTInterfaces() {
+		net.FireSTagEvent(sTag)
+	}
 
 	//5. - fire all the events for the now-ready network graph
 	net.pushContainersEvents(netGraphs)
@@ -84,10 +83,11 @@ func (net *Network) UpdateContainer(containerId string) error {
 	return nil
 }
 
-func (net *Network) RemoveContainer(containerId string) {
+func (net *Network) RemoveContainer(containerId string) (graph.ContainerNetwork) {
 	//push an empty network
 	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(containerId))
 	net.pushContainerEvents(oldContainerNet)
+	return oldContainerNet
 }
 
 func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetwork, error) {
