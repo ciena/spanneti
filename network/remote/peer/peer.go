@@ -3,6 +3,7 @@ package peer
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
+	"errors"
 	"fmt"
 )
 
@@ -11,45 +12,45 @@ type TunnelID uint32
 
 const NUM_TUNNEL_IDS = 1 << 24
 
-type remotePeer struct {
-	fabricIp  string
-	tunnelFor map[graph.LinkID]TunnelID
-	linkFor   map[TunnelID]graph.LinkID
-}
-
-func (peer *remotePeer) allocate(linkId graph.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) error {
+func (man *TunnelManager) allocate(linkId graph.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) error {
 	//cleanup old relationships
-	if oldTunnelId, have := peer.tunnelFor[linkId]; have {
-		if oldTunnelId == tunnelId {
+	if tunnel, have := man.tunnelForLink[linkId]; have {
+		if tunnel.id == tunnelId && tunnel.fabricIp == fabricIp {
 			fmt.Println("Alreay set up:", linkId, "to", fabricIp, "via", tunnelId)
 			return nil
 		}
-		delete(peer.linkFor, oldTunnelId)
-		delete(peer.tunnelFor, linkId)
-		if err := resolver.TeardownRemoteContainerLink(ethName, containerPid); err != nil {
-			return err
-		}
+		return errors.New(fmt.Sprint("Tunnel with linkId", linkId, " already exists"))
+	}
+
+	if _, have := man.tunnelForId[tunnelId]; have {
+		return errors.New(fmt.Sprint("Tunnel with tunnelId ", tunnelId, " already exists"))
+	}
+
+	fmt.Printf("Will setup link %s:%s to %s via %d\n", ethName, linkId, fabricIp, tunnelId)
+	if err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), fabricIp); err != nil {
+		return err
 	}
 
 	//map new relationship
-	peer.tunnelFor[linkId] = tunnelId
-	peer.linkFor[tunnelId] = linkId
-
-	fmt.Printf("Will setup link %s:%s to %s via %d\n", ethName, linkId, fabricIp, tunnelId)
-	err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), fabricIp)
-	if err != nil {
-		delete(peer.tunnelFor, linkId)
-		delete(peer.linkFor, tunnelId)
+	tunnel := &tunnel{
+		id:       tunnelId,
+		linkId:   linkId,
+		fabricIp: fabricIp,
 	}
-	return err
+	man.tunnelForId[tunnelId] = tunnel
+	man.tunnelForLink[linkId] = tunnel
+	return nil
 }
 
-func (peer *remotePeer) deallocate(linkId graph.LinkID, ethName string, containerPid int) error {
+func (man *TunnelManager) deallocate(linkId graph.LinkID, ethName string, containerPid int) error {
 	//cleanup old relationships
-	if tunnelId, have := peer.tunnelFor[linkId]; have {
-		delete(peer.linkFor, tunnelId)
-		delete(peer.tunnelFor, linkId)
-		return resolver.TeardownRemoteContainerLink(ethName, containerPid)
+	if tunnel, have := man.tunnelForLink[linkId]; have {
+		fmt.Printf("Will teardown link %s:%s to %s via %d\n", ethName, linkId, tunnel.fabricIp, tunnel.id)
+		if _, _, err := resolver.DeleteContainerRemoteInterface(ethName, containerPid); err != nil {
+			return err
+		}
+		delete(man.tunnelForId, tunnel.id)
+		delete(man.tunnelForLink, linkId)
 	}
 	return nil
 }

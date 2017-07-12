@@ -48,10 +48,16 @@ func (net *Network) init() {
 	//1. - build the current network graph
 	netGraphs := make([]graph.ContainerNetwork, len(containers))
 	for i, container := range containers {
-		netGraphs[i], err = net.GetContainerNetwork(container.ID)
+		var running bool
+		netGraphs[i], running, err = net.GetContainerNetwork(container.ID)
 		if err != nil {
 			fmt.Println(err)
 		}
+		if !running {
+			net.cleanInterfaces(netGraphs[i])
+			netGraphs[i] = graph.GetEmptyContainerNetwork(container.ID)
+		}
+
 		net.graph.PushContainerChanges(netGraphs[i])
 	}
 
@@ -74,7 +80,7 @@ func (net *Network) init() {
 }
 
 func (net *Network) UpdateContainer(containerId string) error {
-	containerNet, err := net.GetContainerNetwork(containerId)
+	containerNet, _, err := net.GetContainerNetwork(containerId)
 	if err != nil {
 		return err
 	}
@@ -83,19 +89,23 @@ func (net *Network) UpdateContainer(containerId string) error {
 	return nil
 }
 
-func (net *Network) RemoveContainer(containerId string) (graph.ContainerNetwork) {
+func (net *Network) RemoveContainer(containerId string) graph.ContainerNetwork {
 	//push an empty network
 	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(containerId))
+	//fire events
 	net.pushContainerEvents(oldContainerNet)
+	//ensure all interfaces have been deleted
+	net.cleanInterfaces(oldContainerNet)
 	return oldContainerNet
 }
 
-func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetwork, error) {
+func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetwork, bool, error) {
 	container, err := net.client.ContainerInspect(context.Background(), containerId)
 	if err != nil {
-		return graph.GetEmptyContainerNetwork(containerId), err
+		return graph.GetEmptyContainerNetwork(containerId), false, err
 	}
 
+	running := container.State.Running || container.State.Restarting || container.State.Paused
 	var networkData string
 	var has bool
 	for _, env := range container.Config.Env {
@@ -110,7 +120,7 @@ func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetw
 	}
 
 	if !has {
-		return graph.GetEmptyContainerNetwork(containerId), nil
+		return graph.GetEmptyContainerNetwork(containerId), running, nil
 	}
 
 	containerNet, err := graph.ParseContainerNetork(containerId, networkData)
@@ -118,7 +128,7 @@ func (net *Network) GetContainerNetwork(containerId string) (graph.ContainerNetw
 		//for a parse error, we assume no network.  Not a real error.
 		fmt.Println(err)
 	}
-	return containerNet, nil
+	return containerNet, running, nil
 }
 
 func (net *Network) pushContainerEvents(containerNets ...graph.ContainerNetwork) {

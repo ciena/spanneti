@@ -50,8 +50,6 @@ func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	fmt.Println("Setup", ethName, "to", peerFabricIp, "via", tunnelId)
-
 	//get container handle
 	containerNs, err := netns.GetFromPid(containerPid)
 	if err != nil {

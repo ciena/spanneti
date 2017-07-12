@@ -7,107 +7,92 @@ import (
 	"sync"
 )
 
-type PeerManager struct {
+type TunnelManager struct {
 	mutex sync.Mutex
-	peer  map[string]*remotePeer
+	//peer             map[string]*remotePeer
+	tunnelForId   map[TunnelID]*tunnel
+	tunnelForLink map[graph.LinkID]*tunnel
 }
 
-func NewManager() PeerManager {
-	return PeerManager{
-		peer: make(map[string]*remotePeer),
+type tunnel struct {
+	id       TunnelID
+	linkId   graph.LinkID
+	fabricIp string
+}
+
+func NewManager() TunnelManager {
+	return TunnelManager{
+		tunnelForId:   make(map[TunnelID]*tunnel),
+		tunnelForLink: make(map[graph.LinkID]*tunnel),
 	}
 }
 
-func (man *PeerManager) TryAllocate(linkId graph.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) (bool, error) {
+func (man *TunnelManager) TryAllocate(linkId graph.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) (bool, error) {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-	//check if this tunnelId is in use (it's OK if we it's already used for this peer & tunnelId)
-	for _, peer := range man.peer {
-		if currentLinkId, have := peer.linkFor[tunnelId]; have && (currentLinkId != linkId || peer.fabricIp != fabricIp) {
+	//check if this tunnelId is in use ()
+	if tunnel, have := man.tunnelForId[tunnelId]; have{
+		//it's OK if it's already used for this peer & tunnelId
+		if tunnel.linkId != linkId || tunnel.fabricIp != fabricIp {
 			return false, nil
 		}
 	}
 
 	//if this line is reached, it is valid to allocate
 
-	peer := man.getPeerUnsafe(fabricIp)
-	if err := peer.allocate(linkId, ethName, containerPid, tunnelId, fabricIp); err != nil {
+	if err := man.allocate(linkId, ethName, containerPid, tunnelId, fabricIp); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func (man *PeerManager) Deallocate(fabricIp string, linkId graph.LinkID, ethName string, containerPid int) error {
+func (man *TunnelManager) Deallocate(linkId graph.LinkID, ethName string, containerPid int) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-	peer := man.getPeerUnsafe(fabricIp)
-	if err := peer.deallocate(linkId, ethName, containerPid); err != nil {
+	if err := man.deallocate(linkId, ethName, containerPid); err != nil {
 		fmt.Println(err)
 	}
 	return nil
 }
 
-func (man *PeerManager) FindExisting(linkId graph.LinkID, ethName string, containerPid int) error {
+func (man *TunnelManager) FindExisting(linkId graph.LinkID, ethName string, containerPid int) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-	fabricIp, tunnelId, err := resolver.FindExisting(ethName, containerPid)
+	fabricIp, tunnelId, exists, err := resolver.FindExisting(ethName, containerPid)
 	if err != nil {
 		return err
 	}
-	if tunnelId != nil {
-		peer := man.getPeerUnsafe(fabricIp)
-		if err := peer.allocate(linkId, ethName, containerPid, TunnelID(*tunnelId), fabricIp); err != nil {
-			return err
+	if exists {
+		tunnel := &tunnel{
+			id:       TunnelID(tunnelId),
+			linkId:   linkId,
+			fabricIp: fabricIp,
 		}
+		man.tunnelForId[TunnelID(tunnelId)] = tunnel
+		man.tunnelForLink[linkId] = tunnel
 	}
 	return nil
 }
 
-func (man *PeerManager) NextAvailableTunnelId(after TunnelID) *TunnelID {
+func (man *TunnelManager) NextAvailableTunnelId(after TunnelID) *TunnelID {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-outer:
 	for ; after < NUM_TUNNEL_IDS; after++ {
-		for _, peer := range man.peer {
-			if _, has := peer.linkFor[after]; has {
-				continue outer
-			}
+		if _, has := man.tunnelForId[after]; !has {
+			return &after
 		}
-		break
-	}
-
-	if after < NUM_TUNNEL_IDS {
-		return &after
 	}
 	return nil
 }
 
-func (man *PeerManager) TunnelFor(fabricIp string, linkId graph.LinkID) (*TunnelID, bool) {
-	man.mutex.Lock()
-	defer man.mutex.Unlock()
-
-	peer, have := man.peer[fabricIp]
-	if !have {
-		return nil, false
+func (man *TunnelManager) TunnelFor(fabricIp string, linkId graph.LinkID) (TunnelID, bool) {
+	tunnel, allocated := man.tunnelForLink[linkId]
+	if !allocated || tunnel.fabricIp != fabricIp {
+		return 0, false
 	}
-	tunnelId, have := peer.tunnelFor[linkId]
-	return &tunnelId, have
-}
-
-func (man PeerManager) getPeerUnsafe(fabricIp string) *remotePeer {
-	if peer, have := man.peer[fabricIp]; have {
-		return peer
-	} else {
-		peer := &remotePeer{
-			fabricIp:  fabricIp,
-			tunnelFor: make(map[graph.LinkID]TunnelID),
-			linkFor:   make(map[TunnelID]graph.LinkID),
-		}
-		man.peer[fabricIp] = peer
-		return peer
-	}
+	return tunnel.id, allocated
 }

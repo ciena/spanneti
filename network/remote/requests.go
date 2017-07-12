@@ -15,7 +15,7 @@ import (
 )
 
 //requestState GETs a link
-func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) (getResponse, string, bool, error) {
+func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) (getResponse, bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -30,35 +30,35 @@ func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) 
 		"http://"+fmt.Sprint(peerIp)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
-		return getResponse{}, "", false, err
+		return getResponse{}, false, err
 	}
 
 	resp, err := client.Do(request)
 	if err != nil {
 		//if fails, just go to next
-		return getResponse{}, "", false, err
+		return getResponse{}, false, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return getResponse{}, "", false, nil
+		return getResponse{}, false, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return getResponse{}, "", false, errors.New("Unexpected status code: " + resp.Status)
+		return getResponse{}, false, errors.New("Unexpected status code: " + resp.Status)
 	}
 
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return getResponse{}, "", false, err
+		return getResponse{}, false, err
 	}
 
 	var response getResponse
 	if err := json.Unmarshal(data, &response); err != nil {
 		//if fails, just go to next
-		return getResponse{}, "", false, err
+		return getResponse{}, false, err
 	}
 
-	return response, resp.Header.Get("fabric-ip"), true, nil
+	return response, true, nil
 }
 
 //requestSetup PUTs a link
@@ -74,7 +74,7 @@ func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, 
 
 	data, err := json.Marshal(&linkProposal{TunnelId: tunnelId})
 	if err != nil {
-		return false, tunnelId, err
+		return false, 0, err
 	}
 
 	request, err := http.NewRequest(
@@ -82,28 +82,28 @@ func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, 
 		"http://"+string(peerIp)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		bytes.NewReader(data))
 	if err != nil {
-		return false, tunnelId, err
+		return false, 0, err
 	}
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return false, tunnelId, err
+		return false, 0, err
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		return false, tunnelId, errors.New("LinkID does not exist on remote peer, linkup failed.")
+		return false, 0, errors.New("LinkID does not exist on remote peer, linkup failed.")
 	}
 
 	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusConflict {
 
 		data, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return false, tunnelId, err
+			return false, 0, err
 		}
 
 		var response linkProposalResponse
 		if err := json.Unmarshal(data, &response); err != nil {
-			return false, tunnelId, err
+			return false, 0, err
 		}
 
 		if resp.StatusCode == http.StatusCreated {
@@ -122,11 +122,11 @@ func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, 
 		}
 	}
 
-	return false, tunnelId, errors.New("Unexpected status code:" + resp.Status)
+	return false, 0, errors.New("Unexpected status code:" + resp.Status)
 }
 
 //requestDelete DELETES a link
-func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID) (bool, string, error) {
+func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -141,18 +141,18 @@ func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID)
 		"http://"+string(peerId)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
-		return false, "", err
+		return err
 	}
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return false, "", err
+		return err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return false, "", errors.New("Unexpected return code:" + resp.Status)
+		return errors.New("Unexpected return code:" + resp.Status)
 	}
-	return true, resp.Header.Get("fabric-ip"), nil
+	return nil
 }
 
 //tryResyncUnsafe tries to have the other side resync the given list of links
@@ -173,7 +173,7 @@ func (man *RemoteManager) tryResyncUnsafe(peerId peer.PeerID, linkIds []graph.Li
 
 	request, err := http.NewRequest(
 		http.MethodPost,
-		"http://"+fmt.Sprint(peerId)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/resync",
+		"http://"+fmt.Sprint(peerId)+":8080/resync",
 		bytes.NewReader(data))
 	if err != nil {
 		return err

@@ -13,7 +13,7 @@ import (
 
 func (man *RemoteManager) runServer() {
 	r := mux.NewRouter()
-	r.HandleFunc("/peer/{fabricIp}/resync", man.resyncHandler).Methods(http.MethodPost)
+	r.HandleFunc("/resync", man.resyncHandler).Methods(http.MethodPost)
 	//r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.getLinkHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
@@ -94,6 +94,7 @@ func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) 
 
 type getResponse struct {
 	TunnelId peer.TunnelID `json:"tunnel-id"`
+	FabricIp string        `json:"fabric-ip"`
 	Setup    bool          `json:"setup"`
 }
 
@@ -107,16 +108,16 @@ func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	response := getResponse{}
+	response := getResponse{FabricIp: man.fabricIp}
 
 	//if this side already has a tunnel set up
-	if tunnelId, allocated := man.TunnelFor(fabricIp, linkId); allocated {
+	if tunnelId, allocated := man.peerMan.TunnelFor(fabricIp, linkId); allocated {
 		//return existing
-		response.TunnelId = *tunnelId
+		response.TunnelId = tunnelId
 		response.Setup = true
 	} else {
 		//if undefined, propose lowest available tunnelId
-		response.TunnelId = *man.NextAvailableTunnelId(0)
+		response.TunnelId = *man.peerMan.NextAvailableTunnelId(0)
 		response.Setup = false
 	}
 
@@ -125,7 +126,6 @@ func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else {
-		w.Header().Add("fabric-ip", man.fabricIp)
 		w.WriteHeader(http.StatusOK)
 		w.Write(data)
 	}
@@ -181,7 +181,7 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	allocated, err := man.TryAllocate(linkId, related[0].GetIfaceFor(linkId), containerPid, proposal.TunnelId, fabricIp)
+	allocated, err := man.peerMan.TryAllocate(linkId, related[0].GetIfaceFor(linkId), containerPid, proposal.TunnelId, fabricIp)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -191,7 +191,13 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 	if allocated {
 		proposal.status = http.StatusCreated
 	} else {
-		proposal.TryTunnelId = man.NextAvailableTunnelId(proposalRequest.TunnelId)
+		//if already exists, and has a higher ID, recommend existing
+		if tunnelId, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists && tunnelId > proposalRequest.TunnelId {
+			proposal.TryTunnelId = &tunnelId
+		} else {
+			//otherwise use original recommendation
+			proposal.TryTunnelId = man.peerMan.NextAvailableTunnelId(proposalRequest.TunnelId)
+		}
 		proposal.status = http.StatusConflict
 	}
 
@@ -201,7 +207,6 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else {
-		w.Header().Add("fabric-ip", man.fabricIp)
 		w.WriteHeader(proposal.status)
 		w.Write(data)
 	}
@@ -220,13 +225,14 @@ func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		if err := man.Deallocate(fabricIp, linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
-			fmt.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+		if _, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists {
+			if err := man.peerMan.Deallocate(linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
+				fmt.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
-	w.Header().Add("fabric-ip", man.fabricIp)
 	w.WriteHeader(http.StatusOK)
 }

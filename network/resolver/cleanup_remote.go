@@ -1,38 +1,34 @@
 package resolver
 
 import (
-	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"runtime"
 )
 
-func TeardownRemoteContainerLink(ethName string, containerPid int) error {
+func DeleteContainerRemoteInterface(ethName string, containerPid int) (bool, int, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	//get container handle
 	containerNs, err := netns.GetFromPid(containerPid)
 	if err != nil {
-		return err
+		return false, 0, err
 	}
 	defer containerNs.Close()
 	containerHandle, err := netlink.NewHandleAt(containerNs)
 	if err != nil {
-		return err
+		return false, 0, err
 	}
 
-	//clean up previous
+	//if the interface exists
 	if link, err := containerHandle.LinkByName(ethName); err == nil {
-		if _, isVxlan := link.(*netlink.Vxlan); isVxlan {
-			//if an interface of the proper type already exists, there's nothing to do
-			if err := containerHandle.LinkDel(link); err != nil {
-				return err
-			}
-			fmt.Println("Interface", ethName, "deleted")
-			return nil
+		//if the interface type is veth
+		if link, isVxlan := link.(*netlink.Vxlan); isVxlan {
+			//delete
+			err := containerHandle.LinkDel(link)
+			return true, link.VxlanId, err
 		}
 	}
-
-	return nil
+	return false, 0, nil
 }
