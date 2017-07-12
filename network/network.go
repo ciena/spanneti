@@ -54,7 +54,6 @@ func (net *Network) init() {
 			fmt.Println(err)
 		}
 		if !running {
-			net.cleanInterfaces(netGraphs[i])
 			netGraphs[i] = graph.GetEmptyContainerNetwork(container.ID)
 		}
 
@@ -94,8 +93,6 @@ func (net *Network) RemoveContainer(containerId string) graph.ContainerNetwork {
 	oldContainerNet := net.graph.PushContainerChanges(graph.GetEmptyContainerNetwork(containerId))
 	//fire events
 	net.pushContainerEvents(oldContainerNet)
-	//ensure all interfaces have been deleted
-	net.cleanInterfaces(oldContainerNet)
 	return oldContainerNet
 }
 

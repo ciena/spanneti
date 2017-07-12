@@ -168,7 +168,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 	return true, nil
 }
 
-func (man *RemoteManager) TryCleanup(linkId graph.LinkID, ethName string, containerPid int) error {
+func (man *RemoteManager) TryCleanup(linkId graph.LinkID) error {
 	peers, err := LookupPeerIps()
 	if err != nil {
 		panic(err)
@@ -187,7 +187,7 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID, ethName string, contai
 		}
 	}
 
-	return man.peerMan.Deallocate(linkId, ethName, containerPid)
+	return man.peerMan.Deallocate(linkId)
 }
 
 func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []getResponse) {

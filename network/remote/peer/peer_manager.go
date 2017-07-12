@@ -15,9 +15,11 @@ type TunnelManager struct {
 }
 
 type tunnel struct {
-	id       TunnelID
-	linkId   graph.LinkID
-	fabricIp string
+	id           TunnelID
+	linkId       graph.LinkID
+	fabricIp     string
+	ethName      string
+	containerPid int
 }
 
 func NewManager() TunnelManager {
@@ -32,7 +34,7 @@ func (man *TunnelManager) TryAllocate(linkId graph.LinkID, ethName string, conta
 	defer man.mutex.Unlock()
 
 	//check if this tunnelId is in use ()
-	if tunnel, have := man.tunnelForId[tunnelId]; have{
+	if tunnel, have := man.tunnelForId[tunnelId]; have {
 		//it's OK if it's already used for this peer & tunnelId
 		if tunnel.linkId != linkId || tunnel.fabricIp != fabricIp {
 			return false, nil
@@ -47,11 +49,11 @@ func (man *TunnelManager) TryAllocate(linkId graph.LinkID, ethName string, conta
 	return true, nil
 }
 
-func (man *TunnelManager) Deallocate(linkId graph.LinkID, ethName string, containerPid int) error {
+func (man *TunnelManager) Deallocate(linkId graph.LinkID) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-	if err := man.deallocate(linkId, ethName, containerPid); err != nil {
+	if err := man.deallocate(linkId); err != nil {
 		fmt.Println(err)
 	}
 	return nil
@@ -67,9 +69,11 @@ func (man *TunnelManager) FindExisting(linkId graph.LinkID, ethName string, cont
 	}
 	if exists {
 		tunnel := &tunnel{
-			id:       TunnelID(tunnelId),
-			linkId:   linkId,
-			fabricIp: fabricIp,
+			id:           TunnelID(tunnelId),
+			linkId:       linkId,
+			fabricIp:     fabricIp,
+			ethName:      ethName,
+			containerPid: containerPid,
 		}
 		man.tunnelForId[TunnelID(tunnelId)] = tunnel
 		man.tunnelForLink[linkId] = tunnel

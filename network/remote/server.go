@@ -216,21 +216,11 @@ func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Reque
 	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := graph.LinkID(mux.Vars(r)["linkId"])
 
-	nets := man.graph.GetRelatedTo(linkId)
-	if len(nets) == 1 {
-		containerPid, err := man.getContainerPid(nets[0].ContainerId)
-		if err != nil {
+	if _, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists {
+		if err := man.peerMan.Deallocate(linkId); err != nil {
 			fmt.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
-		}
-
-		if _, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists {
-			if err := man.peerMan.Deallocate(linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
-				fmt.Println(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 
