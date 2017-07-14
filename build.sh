@@ -1,10 +1,17 @@
 #!/bin/bash
 
+GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+GIT_COMMIT_NUM="$(git rev-list --count HEAD)"
+GIT_COMMIT="$(git log --format='%H' -n 1)"
+if [ "$(git diff *.go)" != "" ]; then
+	CHANGED="true"
+fi
+
 # run a build container, with static compilation
 docker run --rm \
   -v $GOPATH/src:/go/src \
   golang:1.8.1 \
-  bash -c "cd /go/src/bitbucket.ciena.com/BP_ONOS/spanneti; go build -v -tags netgo --ldflags '-extldflags \"-static\"' -o build/spanneti main.go"
+  bash -c "cd /go/src/bitbucket.ciena.com/BP_ONOS/spanneti; go build -v -tags netgo --ldflags '-extldflags \"-static\" -X \"main.GIT_BRANCH=$GIT_BRANCH\" -X \"main.GIT_COMMIT_NUM=$GIT_COMMIT_NUM\" -X \"main.GIT_COMMIT=$GIT_COMMIT\" -X \"main.CHANGED=$CHANGED\"' -o build/spanneti main.go"
 
 docker build -t spanneti .
 

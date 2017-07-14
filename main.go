@@ -12,14 +12,31 @@ import (
 	"syscall"
 )
 
-func main() {
+var (
+	GIT_BRANCH     string
+	GIT_COMMIT_NUM string
+	GIT_COMMIT     string
+	CHANGED        string
+)
 
+func main() {
+	displayBranch := ""
+	if GIT_BRANCH != "master" {
+		displayBranch = GIT_BRANCH + " "
+	}
 	fmt.Println(`                                  _   _ `)
 	fmt.Println(` ___ _ __   __ _ _ __  _ __   ___| |_(_)`)
 	fmt.Println("/ __| '_ \\ / _` | '_ \\| '_ \\ / _ \\ __| |")
 	fmt.Println(`\__ \ |_) | (_| | | | | | | |  __/ |_| |`)
 	fmt.Println(`|___/ .__/ \__,_|_| |_|_| |_|\___|\__|_|`)
-	fmt.Println(`    |_| v0.01`)
+	if CHANGED == "true" {
+		fmt.Println(`DEV |_|`, displayBranch+"v0."+GIT_COMMIT_NUM+".x")
+		fmt.Println("Base:", GIT_COMMIT)
+	} else {
+
+		fmt.Println(`    |_|`, displayBranch+"v0."+GIT_COMMIT_NUM)
+		fmt.Println(GIT_COMMIT)
+	}
 	fmt.Println()
 	//It's simple, we kill the PACketMAN
 
