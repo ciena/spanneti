@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"runtime"
@@ -23,6 +24,7 @@ func FindExisting(ethName string, containerPid int) (string, int, bool, error) {
 
 	if link, err := containerHandle.LinkByName(ethName); err == nil {
 		if link, isVxlan := link.(*netlink.Vxlan); isVxlan {
+			fmt.Println("Discovered link to", link.Group.String(), "via", link.VxlanId)
 			return link.Group.String(), link.VxlanId, true, nil
 		}
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 type RemoteManager struct {
-	peerMan     peer.TunnelManager
+	tunnelMan   peer.TunnelManager
 	peerId      peer.PeerID
 	fabricIp    string
 	client      *client.Client
@@ -24,7 +24,7 @@ type RemoteManager struct {
 	outOfSync   map[peer.PeerID]map[graph.LinkID]bool
 }
 
-func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, netGraphs []graph.ContainerNetwork) (*RemoteManager, error) {
+func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, allNetGraphs []graph.ContainerNetwork) (*RemoteManager, error) {
 	fmt.Print("Determining fabric IP... ")
 	ip, err := resolver.DetermineFabricIp()
 	if err != nil {
@@ -33,7 +33,7 @@ func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, ne
 	fmt.Println(ip)
 
 	man := &RemoteManager{
-		peerMan:   peer.NewManager(),
+		tunnelMan: peer.NewManager(),
 		peerId:    determineOwnId(),
 		fabricIp:  ip,
 		client:    client,
@@ -43,14 +43,14 @@ func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, ne
 	}
 
 	//scan for existing remote links
-	for _, netGraph := range netGraphs {
+	for _, netGraph := range allNetGraphs {
 		containerPid, err := man.getContainerPid(netGraph.ContainerId)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 		for ethName, linkId := range netGraph.Links {
-			man.peerMan.FindExisting(linkId, ethName, containerPid)
+			man.tunnelMan.FindExisting(linkId, ethName, containerPid)
 		}
 	}
 
@@ -134,7 +134,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 		}
 
 		//now that it's setup remotely, try to setup locally
-		allocated, err := man.peerMan.TryAllocate(linkId, ethName, containerPid, tunnelId, fabricIp)
+		allocated, err := man.tunnelMan.Allocate(linkId, ethName, containerPid, tunnelId, fabricIp)
 		if err != nil {
 			man.unableToSync(peerId, linkId)
 			return false, err
@@ -145,9 +145,9 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 			localSetup = true
 		} else {
 			//go to next available tunnel ID
-			tunnel := man.peerMan.NextAvailableTunnelId(tunnelId)
+			tunnel := man.tunnelMan.NextAvailableTunnelId(tunnelId)
 			//if already exists, and has a higher tunnelId, recommend existing
-			if existingTunnelId, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists && existingTunnelId > tunnelId {
+			if existingTunnelId, exists := man.tunnelMan.TunnelFor(fabricIp, linkId); exists && existingTunnelId > tunnelId {
 				tunnel = &existingTunnelId
 			}
 
@@ -187,7 +187,7 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) error {
 		}
 	}
 
-	return man.peerMan.Deallocate(linkId)
+	return man.tunnelMan.Deallocate(linkId)
 }
 
 func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []getResponse) {

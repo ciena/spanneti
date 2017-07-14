@@ -47,9 +47,11 @@ func (net *Network) init() {
 	//this order is intentional, to avoid missing container changes during init
 	//1. - build the current network graph
 	netGraphs := make([]graph.ContainerNetwork, len(containers))
+	allNetGraphs := make([]graph.ContainerNetwork, len(containers))
 	for i, container := range containers {
 		var running bool
 		netGraphs[i], running, err = net.GetContainerNetwork(container.ID)
+		allNetGraphs[i] = netGraphs[i]
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -61,7 +63,7 @@ func (net *Network) init() {
 	}
 
 	//2. - start serving requests
-	net.remote, err = remote.New(net.graph, net.client, net.eventBus, netGraphs)
+	net.remote, err = remote.New(net.graph, net.client, net.eventBus, allNetGraphs)
 	if err != nil {
 		panic(err)
 	}

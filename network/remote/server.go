@@ -111,13 +111,13 @@ func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request)
 	response := getResponse{FabricIp: man.fabricIp}
 
 	//if this side already has a tunnel set up
-	if tunnelId, allocated := man.peerMan.TunnelFor(fabricIp, linkId); allocated {
+	if tunnelId, allocated := man.tunnelMan.TunnelFor(fabricIp, linkId); allocated {
 		//return existing
 		response.TunnelId = tunnelId
 		response.Setup = true
 	} else {
 		//if undefined, propose lowest available tunnelId
-		response.TunnelId = *man.peerMan.NextAvailableTunnelId(0)
+		response.TunnelId = *man.tunnelMan.FirstAvailableTunnelId()
 		response.Setup = false
 	}
 
@@ -181,7 +181,7 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	allocated, err := man.peerMan.TryAllocate(linkId, related[0].GetIfaceFor(linkId), containerPid, proposal.TunnelId, fabricIp)
+	allocated, err := man.tunnelMan.Allocate(linkId, related[0].GetIfaceFor(linkId), containerPid, proposal.TunnelId, fabricIp)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -192,11 +192,11 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		proposal.status = http.StatusCreated
 	} else {
 		//if already exists, and has a higher ID, recommend existing
-		if tunnelId, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists && tunnelId > proposalRequest.TunnelId {
+		if tunnelId, exists := man.tunnelMan.TunnelFor(fabricIp, linkId); exists && tunnelId > proposalRequest.TunnelId {
 			proposal.TryTunnelId = &tunnelId
 		} else {
 			//otherwise use original recommendation
-			proposal.TryTunnelId = man.peerMan.NextAvailableTunnelId(proposalRequest.TunnelId)
+			proposal.TryTunnelId = man.tunnelMan.NextAvailableTunnelId(proposalRequest.TunnelId)
 		}
 		proposal.status = http.StatusConflict
 	}
@@ -216,8 +216,8 @@ func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Reque
 	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := graph.LinkID(mux.Vars(r)["linkId"])
 
-	if _, exists := man.peerMan.TunnelFor(fabricIp, linkId); exists {
-		if err := man.peerMan.Deallocate(linkId); err != nil {
+	if _, exists := man.tunnelMan.TunnelFor(fabricIp, linkId); exists {
+		if err := man.tunnelMan.Deallocate(linkId); err != nil {
 			fmt.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return

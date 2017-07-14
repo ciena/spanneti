@@ -14,18 +14,14 @@ import (
 
 func main() {
 
-	fmt.Println("Try running like this:")
-	fmt.Println("docker run \\")
-	fmt.Println("  -d \\")
-	fmt.Println("  --restart=always \\")
-	fmt.Println("  --pid=host \\")
-	fmt.Println("  --security-opt apparmor:unconfined \\")
-	fmt.Println("  --cap-add=NET_ADMIN \\")
-	fmt.Println("  --cap-add=SYS_ADMIN \\")
-	fmt.Println("  --cap-add=SYS_PTRACE \\")
-	fmt.Println("  -v /var/run/docker.sock:/var/run/docker.sock \\")
-	fmt.Println("  spanneti")
+	fmt.Println(`                                  _   _ `)
+	fmt.Println(` ___ _ __   __ _ _ __  _ __   ___| |_(_)`)
+	fmt.Println("/ __| '_ \\ / _` | '_ \\| '_ \\ / _ \\ __| |")
+	fmt.Println(`\__ \ |_) | (_| | | | | | | |  __/ |_| |`)
+	fmt.Println(`|___/ .__/ \__,_|_| |_|_| |_|\___|\__|_|`)
+	fmt.Println(`    |_| v0.01`)
 	fmt.Println()
+	//It's simple, we kill the PACketMAN
 
 	//if err := resolver.GetPhysicalInterface(); err != nil {
 	//	panic(err)
