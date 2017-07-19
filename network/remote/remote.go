@@ -174,6 +174,8 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) error {
 		panic(err)
 	}
 
+	err = man.tunnelMan.Deallocate(linkId)
+
 	for _, peerId := range peers {
 		if man.peerId == peerId {
 			//do not connect to self
@@ -186,8 +188,7 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) error {
 			continue
 		}
 	}
-
-	return man.tunnelMan.Deallocate(linkId)
+	return err
 }
 
 func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []getResponse) {

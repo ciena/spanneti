@@ -58,12 +58,12 @@ func (man *TunnelManager) Allocate(linkId graph.LinkID, ethName string, containe
 	}
 
 	fmt.Printf("Setup link %s:%s to %s via %d\n", ethName, linkId, fabricIp, tunnelId)
-	if tunnelIdWasFree, err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), fabricIp); err != nil {
+	if err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), fabricIp); err != nil {
+		if err.Error() == "file exists" {
+			fmt.Println("TunnelId", tunnelId, "unavailable")
+			return false, nil
+		}
 		return false, err
-	} else if !tunnelIdWasFree {
-		//fail setup
-		fmt.Println("Tunnel", tunnelId, "unavailable")
-		return false, nil
 	}
 
 	//map new relationship
@@ -102,7 +102,7 @@ func (man *TunnelManager) FindExisting(linkId graph.LinkID, ethName string, cont
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-	fabricIp, tunnelId, exists, err := resolver.FindExisting(ethName, containerPid)
+	fabricIp, tunnelId, exists, err := resolver.FindExistingRemoteInterface(ethName, containerPid)
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,7 @@
 GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 GIT_COMMIT_NUM="$(git rev-list --count HEAD)"
 GIT_COMMIT="$(git log --format='%H' -n 1)"
-if [ "$(git diff *.go)" != "" ]; then
+if [ "$(git ls-files --others --modified --exclude-standard | grep '.*\.go')" != "" ]; then
 	CHANGED="true"
 fi
 

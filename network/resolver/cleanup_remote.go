@@ -5,9 +5,18 @@ import (
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"runtime"
+	"strconv"
 )
 
 func DeleteContainerRemoteInterface(ethName string, containerPid int) error {
+	_, err := execSelf("delete-container-remote-interface",
+		"--eth-name="+ethName,
+		"--container-pid="+strconv.Itoa(containerPid))
+	return err
+}
+
+
+func deleteContainerRemoteInterface(ethName string, containerPid int) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 

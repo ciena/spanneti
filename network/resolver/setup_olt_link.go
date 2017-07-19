@@ -5,9 +5,19 @@ import (
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"runtime"
+	"strconv"
 )
 
 func SetupOLTContainerLink(ethName string, containerPid int, sTag, cTag uint16) error {
+	_, err := execSelf("setup-olt-container-link",
+		"--eth-name="+ethName,
+		"--container-pid="+strconv.Itoa(containerPid),
+		"--s-tag="+strconv.Itoa(int(sTag)),
+		"--c-tag="+strconv.Itoa(int(cTag)))
+	return err
+}
+
+func setupOLTContainerLink(ethName string, containerPid, sTag, cTag int) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -50,14 +60,24 @@ func SetupOLTContainerLink(ethName string, containerPid int, sTag, cTag uint16) 
 	}
 
 	//create and inject final OLT interface
-	if _, err := setupVlanAndInjectUnsafe(hostHandle, containerHandle, containerPid, INNER_NAME, ethName, cTag, outerLink); err != nil {
+	innerLink, err := setupVlanAndInjectUnsafe(hostHandle, containerHandle, containerPid, INNER_NAME, ethName, cTag, outerLink)
+	if err != nil {
+		return err
+	}
+
+	//add address
+	addr, err := netlink.ParseAddr("192.168.0.1/24")
+	if err != nil {
+		return err
+	}
+	if err := containerHandle.AddrAdd(innerLink, addr); err != nil {
 		return err
 	}
 	return nil
 }
 
 //setupVlanAndInjectUnsafe creates a vlan interface across namespaces (if an appropriate on doesn't already exist)
-func setupVlanAndInjectUnsafe(workingHandle, destHandle *netlink.Handle, destPid int, tempName, ethName string, vlanId uint16, parent netlink.Link) (netlink.Link, error) {
+func setupVlanAndInjectUnsafe(workingHandle, destHandle *netlink.Handle, destPid int, tempName, ethName string, vlanId int, parent netlink.Link) (netlink.Link, error) {
 	isCrossNamespace := workingHandle != destHandle
 
 	if link, err := tryRecoverVlanUnsafe(destHandle, ethName, parent); err != nil {
@@ -81,7 +101,7 @@ func setupVlanAndInjectUnsafe(workingHandle, destHandle *netlink.Handle, destPid
 			Name:        tempName,
 			ParentIndex: parent.Attrs().Index,
 		},
-		VlanId: int(vlanId),
+		VlanId: vlanId,
 	}
 	if err := workingHandle.LinkAdd(link); err != nil {
 		return nil, err

@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
@@ -11,6 +12,18 @@ import (
 const FABRIC_INTERFACE_NAME = "fabric"
 
 func DetermineFabricIp() (string, error) {
+	data, err := execSelf("determine-fabric-ip")
+	if err != nil {
+		return "", err
+	}
+	var fabricIp string
+	if err := json.Unmarshal(data, &fabricIp); err != nil {
+		return "", err
+	}
+	return fabricIp, nil
+}
+
+func determineFabricIp() (string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -44,16 +57,16 @@ func DetermineFabricIp() (string, error) {
 	return addrs[0].IP.String(), nil
 }
 
-func moveNsUnsafe(iface netlink.Link, ethName string, containerPid int, ownHandle, containerHandle *netlink.Handle) error {
+func moveNsUnsafe(link netlink.Link, ethName string, containerPid int, ownHandle, containerHandle *netlink.Handle) error {
 	//move into the container
-	if err := ownHandle.LinkSetNsPid(iface, containerPid); err != nil {
+	if err := ownHandle.LinkSetNsPid(link, containerPid); err != nil {
 		return err
 	}
 	//change names and bring online
-	if err := containerHandle.LinkSetName(iface, ethName); err != nil {
+	if err := containerHandle.LinkSetName(link, ethName); err != nil {
 		return err
 	}
-	if err := containerHandle.LinkSetUp(iface); err != nil {
+	if err := containerHandle.LinkSetUp(link); err != nil {
 		return err
 	}
 	return nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
@@ -19,7 +20,7 @@ var (
 	CHANGED        string
 )
 
-func main() {
+func printLogo() {
 	displayBranch := ""
 	if GIT_BRANCH != "master" {
 		displayBranch = GIT_BRANCH + " "
@@ -39,6 +40,14 @@ func main() {
 	}
 	fmt.Println()
 	//It's simple, we kill the PACketMAN
+}
+
+func main() {
+	if resolver.SelfCall() {
+		return
+	}
+
+	printLogo()
 
 	//if err := resolver.GetPhysicalInterface(); err != nil {
 	//	panic(err)

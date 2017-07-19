@@ -38,10 +38,8 @@ func (net *Network) tryCleanupContainerLink(nets []graph.ContainerNetwork, linkI
 		if err != nil {
 			return err
 		}
-		if removed, err := resolver.DeleteContainerPeerInterface(nets[0].GetIfaceFor(linkId), containerPid); err != nil {
+		if err := resolver.DeleteContainerPeerInterface(nets[0].GetIfaceFor(linkId), containerPid); err != nil {
 			return err
-		} else if removed {
-			fmt.Printf("Removed interface:\n  %s in %s\n", nets[0].GetIfaceFor(linkId), nets[0].ContainerId[0:12])
 		}
 	}
 	return nil

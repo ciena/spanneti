@@ -217,6 +217,12 @@ func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Reque
 	linkId := graph.LinkID(mux.Vars(r)["linkId"])
 
 	if _, exists := man.tunnelMan.TunnelFor(fabricIp, linkId); exists {
+		defer func() {
+			//send an event for this linkId
+			go func() {
+				man.eventBus <- linkId
+			}()
+		}()
 		if err := man.tunnelMan.Deallocate(linkId); err != nil {
 			fmt.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
