@@ -2,18 +2,14 @@ package remote
 
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
-	"fmt"
 	"net"
 	"os"
 )
 
-const DNS_ENTRY = "%s.%s.svc.cluster.local"
-
-var SERVICE = os.Getenv("SERVICE")
-var NAMESPACE = os.Getenv("NAMESPACE")
+var DNS_NAME = os.Getenv("DNS_NAME")
 
 func LookupPeerIps() ([]peer.PeerID, error) {
-	ips, err := net.LookupIP(fmt.Sprintf(DNS_ENTRY, SERVICE, NAMESPACE))
+	ips, err := net.LookupIP(DNS_NAME)
 	if err != nil {
 		return []peer.PeerID{}, err
 	}

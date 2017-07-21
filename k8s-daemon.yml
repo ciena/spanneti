@@ -17,10 +17,8 @@ spec:
         imagePullPolicy: IfNotPresent
         name: spanneti
         env:
-        - name: NAMESPACE
-          value: default
-        - name: SERVICE
-          value: spanneti
+        - name: DNS_NAME
+          value: spanneti.default.svc.cluster.local
         volumeMounts:
         - name: docker
           mountPath: /var/run/docker.sock

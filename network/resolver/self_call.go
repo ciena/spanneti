@@ -52,18 +52,20 @@ func SelfCall() bool {
 		output, err = determineFabricIp()
 	}
 
-	//print errors
+	//if any errors, print them to stdout
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err.Error())
+		fmt.Print(err.Error())
 		os.Exit(1)
 	}
 
-	//print output
 	if output != nil {
 		data, err := json.Marshal(output)
+		//if any errors, print them to stdout
 		if err != nil {
-
+			fmt.Print(err.Error())
+			os.Exit(1)
 		}
+		//print output to stdout
 		fmt.Printf("%s", data)
 	}
 	return true
@@ -82,13 +84,16 @@ func execSelf(command string, args ...string) ([]byte, error) {
 	stdout := outBuffer.Bytes()
 	errout := errBuffer.Bytes()
 
-	if len(errout) > 0 || cmdErr != nil {
+	if len(errout) > 0 {
+		fmt.Printf("%s", errout)
+	}
+
+	if cmdErr != nil {
 		if len(stdout) > 0 {
-			fmt.Println(string(stdout))
+			return []byte{}, errors.New(string(stdout))
+		} else {
+			return []byte{}, cmdErr
 		}
 	}
-	if len(errout) > 0 {
-		return stdout, errors.New(string(errout))
-	}
-	return stdout, cmdErr
+	return stdout, nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	"os"
 	"runtime"
 	"strconv"
 )
@@ -25,7 +26,6 @@ func FindExistingRemoteInterface(ethName string, containerPid int) (string, int,
 
 	existing := existing{}
 	err = json.Unmarshal(stdout, &existing)
-	fmt.Println("Discovered link to", existing.FabricIp, "via", existing.TunnelId)
 	return existing.FabricIp, existing.TunnelId, existing.Exists, err
 }
 
@@ -46,6 +46,7 @@ func findExistingRemoteInterface(ethName string, containerPid int) (*existing, e
 
 	if link, err := containerHandle.LinkByName(ethName); err == nil {
 		if link, isVxlan := link.(*netlink.Vxlan); isVxlan {
+			fmt.Fprintln(os.Stderr, "Discovered link to", link.Group.String(), "via", link.VxlanId)
 			return &existing{FabricIp: link.Group.String(), TunnelId: link.VxlanId, Exists: true}, nil
 		}
 	}
