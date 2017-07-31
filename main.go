@@ -49,10 +49,6 @@ func main() {
 
 	printLogo()
 
-	//if err := resolver.GetPhysicalInterface(); err != nil {
-	//	panic(err)
-	//}
-
 	//listen for shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

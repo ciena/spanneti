@@ -26,16 +26,16 @@ type RemoteManager struct {
 
 func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, allNetGraphs []graph.ContainerNetwork) (*RemoteManager, error) {
 	fmt.Print("Determining fabric IP... ")
-	ip, err := resolver.DetermineFabricIp()
+	fabricIp, err := resolver.DetermineFabricIp()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(ip)
+	fmt.Println(fabricIp)
 
 	man := &RemoteManager{
 		tunnelMan: peer.NewManager(),
 		peerId:    determineOwnId(),
-		fabricIp:  ip,
+		fabricIp:  fabricIp,
 		client:    client,
 		graph:     network,
 		eventBus:  ch,
@@ -60,34 +60,46 @@ func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, al
 
 func determineOwnId() peer.PeerID {
 	var ownId peer.PeerID
+	backoff := 1
 	for ownId == "" {
 		fmt.Print("Determining own IP... ")
-
+		//get peers' IPs
 		peerIps, err := LookupPeerIps()
 		if err != nil {
-			panic(err)
-		}
-		ifaces, err := net.InterfaceAddrs()
-		if err != nil {
-			panic(err)
-		}
-
-		//shared IPv4 address is ours
-		for _, iface := range ifaces {
-			if ipnet, ok := iface.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-				if ipnet.IP.To4() != nil {
-					for _, peerIp := range peerIps {
-						if peerIp == peer.PeerID(ipnet.IP.String()) {
-							ownId = peerIp
+			fmt.Printf("Error, will retry (%ds)\n", backoff)
+			fmt.Println(err)
+		} else {
+			//get interfaces
+			ifaces, err := net.InterfaceAddrs()
+			if err != nil {
+				fmt.Printf("Error, will retry (%ds)\n", backoff)
+				fmt.Println(err)
+			} else {
+				//shared IPv4 address is ours
+				for _, iface := range ifaces {
+					if ipnet, ok := iface.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+						if ipnet.IP.To4() != nil {
+							for _, peerIp := range peerIps {
+								if peerIp == peer.PeerID(ipnet.IP.String()) {
+									ownId = peerIp
+								}
+							}
 						}
 					}
+				}
+
+				if ownId == "" {
+					fmt.Printf("Unknown, will retry (%ds)\n", backoff)
 				}
 			}
 		}
 
 		if ownId == "" {
-			fmt.Println("Unknown, will retry")
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * time.Duration(backoff))
+			backoff *= 2
+			if backoff > 8 {
+				backoff = 8
+			}
 		} else {
 			fmt.Println(ownId)
 		}

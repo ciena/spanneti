@@ -31,7 +31,6 @@ func (man *RemoteManager) unableToSync(peerId peer.PeerID, linkId graph.LinkID) 
 func (man *RemoteManager) resyncProcess() {
 	isOutOfSync := true
 	for isOutOfSync {
-		//TODO: use events instead of sync
 		time.Sleep(time.Second)
 		fmt.Println("Attempting to resync...")
 

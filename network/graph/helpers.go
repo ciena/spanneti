@@ -18,7 +18,7 @@ func GetEmptyContainerNetwork(containerId string) ContainerNetwork {
 }
 
 func getEmptyContainerNetwork(containerId ContainerID) ContainerNetwork {
-	return ContainerNetwork{ContainerId: ContainerID(containerId)}
+	return ContainerNetwork{ContainerId: containerId}
 }
 
 func (contNet ContainerNetwork) GetIfaceFor(linkId LinkID) string {

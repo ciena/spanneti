@@ -38,6 +38,7 @@ func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) 
 		//if fails, just go to next
 		return getResponse{}, false, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return getResponse{}, false, nil
@@ -89,6 +90,7 @@ func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, 
 	if err != nil {
 		return false, 0, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return false, 0, errors.New("LinkID does not exist on remote peer, linkup failed.")
@@ -148,6 +150,7 @@ func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("Unexpected return code:" + resp.Status)
@@ -183,6 +186,7 @@ func (man *RemoteManager) tryResyncUnsafe(peerId peer.PeerID, linkIds []graph.Li
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if !(resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted) {
 		return errors.New("Unexpected response code: " + resp.Status)

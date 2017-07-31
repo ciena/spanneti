@@ -12,9 +12,8 @@ spec:
       containers:
       - securityContext:
           privileged: true
-        image: spanneti:latest
-        # remove this once a proper repo is set up
-        imagePullPolicy: IfNotPresent
+        image: khagerma/spanneti:dev
+        imagePullPolicy: Always
         name: spanneti
         env:
         - name: DNS_NAME
