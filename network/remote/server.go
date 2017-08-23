@@ -58,40 +58,6 @@ func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusAccepted)
 }
 
-//func (man *RemoteManager) listLinksHandler(w http.ResponseWriter, r *http.Request) {
-//	peer, err := man.getPeer(peerID(mux.Vars(r)["peerId"]))
-//	if err != nil {
-//		fmt.Println(err)
-//		w.WriteHeader(http.StatusInternalServerError)
-//		return
-//	}
-//	peer.mutex.Lock()
-//	defer peer.mutex.Unlock()
-//
-//	//stream out the list
-//	first := true
-//	w.WriteHeader(http.StatusOK)
-//	w.Write([]byte{'['})
-//	for linkId, tunnelId := range peer.tunnelFor {
-//		data, err := json.Marshal(linkResponse{
-//			LinkId:   linkId,
-//			TunnelId: &tunnelId,
-//		})
-//		if err != nil {
-//			fmt.Println(err)
-//		}
-//
-//		//add commas to list
-//		if first {
-//			first = false
-//		} else {
-//			w.Write([]byte{','})
-//		}
-//		w.Write(data)
-//	}
-//	w.Write([]byte{']'})
-//}
-
 type getResponse struct {
 	TunnelId peer.TunnelID `json:"tunnel-id"`
 	FabricIp string        `json:"fabric-ip"`

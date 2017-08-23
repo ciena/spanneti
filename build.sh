@@ -24,7 +24,7 @@ fi
 
 IMAGES="$(docker images -q --filter=dangling=true)"
 if [ "$IMAGES" != "" ]; then
-	docker rmi "$IMAGES"
+	docker rmi $IMAGES
 fi
 
 if [ "$1" == "--run" ]; then
