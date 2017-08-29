@@ -18,6 +18,8 @@ spec:
         env:
         - name: DNS_NAME
           value: spanneti.default.svc.cluster.local
+        - name: HOST_INTERFACE_NAME
+          value: fabric
         volumeMounts:
         - name: docker
           mountPath: /var/run/docker.sock

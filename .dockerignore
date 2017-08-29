@@ -1,4 +1,11 @@
-**/*
-!build/spanneti
-
-
+*.idea
+*.iml
+*.md
+*.sh
+*.yml
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+vendor/
+!vendor/vendor.json

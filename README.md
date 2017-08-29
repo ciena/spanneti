@@ -1,5 +1,6 @@
 # Spanneti
-*Span*s *net*works, creating a *spa*ghet*ti* of connections.
+**Span**s **net**works, creating a **spa**gh**etti** of connections.
+
 
 ## Description
 Spanneti listens for specially-tagged containers, and builds container networks based on those tags.
@@ -7,11 +8,13 @@ It was specifically designed to set up VNF chains, so it currently supports poin
 and OLT setup (s-tag/c-tag interfaces for the currently-limited tag-forwarding of ONOS).
 
 
-## HA
-Spanneti was designed with HA & fault tolerance as the highest priority, so it can crash, be restarted, or (in theory) upgraded, without disrupting traffic.
+## Running
+Deploy in a k8s cluster using the k8s deployment file.
+`kubectl apply -f k8s.yml`
+(You may want to pin the version)
 
 
-## Design
-It currently ignores the docker/k8s plugin system (our use case was not supported by the docker plugin API.)
-
-It runs as a single container (13MB total) per compute, and does not need to maintain state.  (on restart, will diff container tags vs current network)
+### Configuration
+Environment variables can be changed in the k8s deployment file.
+ * DNS_NAME - name of the dns entry to lookup for peer discovery
+ * HOST_INTERFACE_NAME - name of the interface on which to setup networking

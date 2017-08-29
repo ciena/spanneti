@@ -44,11 +44,11 @@ func setupOLTContainerLink(ethName string, containerPid, sTag, cTag int) error {
 	}
 
 	//get interface names
-	OUTER_NAME := fmt.Sprintf("%s.%d", FABRIC_INTERFACE_NAME, sTag)
-	INNER_NAME := fmt.Sprintf("%s.%d.%d", FABRIC_INTERFACE_NAME, sTag, cTag)
+	OUTER_NAME := fmt.Sprintf("%s.%d", HOST_INTERFACE_NAME, sTag)
+	INNER_NAME := fmt.Sprintf("%s.%d.%d", HOST_INTERFACE_NAME, sTag, cTag)
 
 	//get fabric interface
-	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
+	fabricLink, err := hostHandle.LinkByName(HOST_INTERFACE_NAME)
 	if err != nil {
 		return err
 	}

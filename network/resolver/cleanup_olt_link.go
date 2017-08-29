@@ -38,7 +38,7 @@ func getSharedOLTInterfaces() ([]uint16, error) {
 	}
 
 	//get interface names
-	regex := regexp.MustCompile(`^` + FABRIC_INTERFACE_NAME + `\.(\d+)$`)
+	regex := regexp.MustCompile(`^` + HOST_INTERFACE_NAME + `\.(\d+)$`)
 
 	links, err := hostHandle.LinkList()
 	if err != nil {
@@ -109,7 +109,7 @@ func deleteSharedOLTInterface(sTag int) error {
 	}
 
 	//get interface names
-	SHARED_NAME := fmt.Sprintf("%s.%d", FABRIC_INTERFACE_NAME, sTag)
+	SHARED_NAME := fmt.Sprintf("%s.%d", HOST_INTERFACE_NAME, sTag)
 
 	//check for existing interfaces
 	if link, err := hostHandle.LinkByName(SHARED_NAME); err == nil {

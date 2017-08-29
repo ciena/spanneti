@@ -59,7 +59,7 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	}
 
 	//ip link add f0A060104000001 type vxlan id 1 remote 10.6.1.4 dev fabric
-	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
+	fabricLink, err := hostHandle.LinkByName(HOST_INTERFACE_NAME)
 	if err != nil {
 		return err
 	}

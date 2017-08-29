@@ -7,9 +7,10 @@ import (
 	"github.com/vishvananda/netns"
 	"runtime"
 	"syscall"
+	"os"
 )
 
-const FABRIC_INTERFACE_NAME = "fabric"
+var HOST_INTERFACE_NAME = os.Getenv("HOST_INTERFACE_NAME")
 
 func DetermineFabricIp() (string, error) {
 	data, err := execSelf("determine-fabric-ip")
@@ -38,7 +39,7 @@ func determineFabricIp() (string, error) {
 		return "", err
 	}
 
-	fabricLink, err := hostHandle.LinkByName(FABRIC_INTERFACE_NAME)
+	fabricLink, err := hostHandle.LinkByName(HOST_INTERFACE_NAME)
 	if err != nil {
 		return "", err
 	}
