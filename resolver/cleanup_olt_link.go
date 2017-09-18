@@ -3,6 +3,7 @@ package resolver
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"regexp"
@@ -29,12 +30,12 @@ func getSharedOLTInterfaces() ([]uint16, error) {
 	//get host handle
 	hostNs, err := netns.GetFromPid(1)
 	if err != nil {
-		return []uint16{}, err
+		return []uint16{}, errors.Wrap(err, "unable to get host namespace")
 	}
 	defer hostNs.Close()
 	hostHandle, err := netlink.NewHandleAt(hostNs)
 	if err != nil {
-		return []uint16{}, err
+		return []uint16{}, errors.Wrap(err, "unable to get host handle")
 	}
 
 	//get interface names
@@ -42,7 +43,7 @@ func getSharedOLTInterfaces() ([]uint16, error) {
 
 	links, err := hostHandle.LinkList()
 	if err != nil {
-		return []uint16{}, err
+		return []uint16{}, errors.Wrap(err, "unable to list links")
 	}
 
 	sTags := make([]uint16, 0)
@@ -50,7 +51,7 @@ func getSharedOLTInterfaces() ([]uint16, error) {
 		if subMatches := regex.FindStringSubmatch(link.Attrs().Name); len(subMatches) > 1 {
 			id, err := strconv.Atoi(subMatches[1])
 			if err != nil {
-				return []uint16{}, err
+				return []uint16{}, errors.Wrapf(err, "unable to parse int from '%s'", subMatches[1])
 			}
 			sTags = append(sTags, uint16(id))
 		}

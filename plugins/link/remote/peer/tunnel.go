@@ -1,8 +1,8 @@
 package peer
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
 	"fmt"
 	"sync"
 )
@@ -16,12 +16,12 @@ type TunnelManager struct {
 	mutex sync.Mutex
 	//peer             map[string]*remotePeer
 	tunnelForId   map[TunnelID]*tunnel
-	tunnelForLink map[graph.LinkID]*tunnel
+	tunnelForLink map[types.LinkID]*tunnel
 }
 
 type tunnel struct {
 	id           TunnelID
-	linkId       graph.LinkID
+	linkId       types.LinkID
 	fabricIp     string
 	ethName      string
 	containerPid int
@@ -30,11 +30,11 @@ type tunnel struct {
 func NewManager() TunnelManager {
 	return TunnelManager{
 		tunnelForId:   make(map[TunnelID]*tunnel),
-		tunnelForLink: make(map[graph.LinkID]*tunnel),
+		tunnelForLink: make(map[types.LinkID]*tunnel),
 	}
 }
 
-func (man *TunnelManager) Allocate(linkId graph.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) (bool, error) {
+func (man *TunnelManager) Allocate(linkId types.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) (bool, error) {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
@@ -79,14 +79,14 @@ func (man *TunnelManager) Allocate(linkId graph.LinkID, ethName string, containe
 	return true, nil
 }
 
-func (man *TunnelManager) Deallocate(linkId graph.LinkID) error {
+func (man *TunnelManager) Deallocate(linkId types.LinkID) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
 	return man.deallocateUnsafe(linkId)
 }
 
-func (man *TunnelManager) deallocateUnsafe(linkId graph.LinkID) error {
+func (man *TunnelManager) deallocateUnsafe(linkId types.LinkID) error {
 	if tunnel, have := man.tunnelForLink[linkId]; have {
 		fmt.Printf("Teardown link %s:%s to %s via %d\n", tunnel.ethName, linkId, tunnel.fabricIp, tunnel.id)
 		if err := resolver.DeleteContainerRemoteInterface(tunnel.ethName, tunnel.containerPid); err != nil {
@@ -98,7 +98,7 @@ func (man *TunnelManager) deallocateUnsafe(linkId graph.LinkID) error {
 	return nil
 }
 
-func (man *TunnelManager) FindExisting(linkId graph.LinkID, ethName string, containerPid int) error {
+func (man *TunnelManager) FindExisting(linkId types.LinkID, ethName string, containerPid int) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
@@ -140,7 +140,7 @@ func (man *TunnelManager) availableTunnelId(after TunnelID) *TunnelID {
 	return nil
 }
 
-func (man *TunnelManager) TunnelFor(fabricIp string, linkId graph.LinkID) (TunnelID, bool) {
+func (man *TunnelManager) TunnelFor(fabricIp string, linkId types.LinkID) (TunnelID, bool) {
 	tunnel, allocated := man.tunnelForLink[linkId]
 	if !allocated || tunnel.fabricIp != fabricIp {
 		return 0, false

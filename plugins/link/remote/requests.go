@@ -1,8 +1,8 @@
 package remote
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -15,7 +15,7 @@ import (
 )
 
 //requestState GETs a link
-func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) (getResponse, bool, error) {
+func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId types.LinkID) (getResponse, bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -63,7 +63,7 @@ func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId graph.LinkID) 
 }
 
 //requestSetup PUTs a link
-func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, tunnelId peer.TunnelID) (bool, peer.TunnelID, error) {
+func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId types.LinkID, tunnelId peer.TunnelID) (bool, peer.TunnelID, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -128,7 +128,7 @@ func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId graph.LinkID, 
 }
 
 //requestDelete DELETES a link
-func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID) error {
+func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId types.LinkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -159,7 +159,7 @@ func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId graph.LinkID)
 }
 
 //tryResyncUnsafe tries to have the other side resync the given list of links
-func (man *RemoteManager) tryResyncUnsafe(peerId peer.PeerID, linkIds []graph.LinkID) error {
+func (man *RemoteManager) tryResyncUnsafe(peerId peer.PeerID, linkIds []types.LinkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{

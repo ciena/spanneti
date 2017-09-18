@@ -1,7 +1,7 @@
 package remote
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
 	"net"
 	"os"
 )

@@ -1,19 +1,18 @@
-package network
+package olt
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
 	"fmt"
 )
 
 //tryCreateOLTLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
-func (net *Network) tryCreateOLTLink(nets []graph.ContainerNetwork, olt graph.OltLink) error {
+func (p *oltPlugin) tryCreateOLTLink(nets []OltData, olt OltLink) error {
 	if len(nets) == 1 {
 		fmt.Printf("Should link OLT (%s): %s in %s\n",
 			olt,
-			nets[0].GetIfaceForOLT(olt), nets[0].ContainerId[0:12])
+			nets[0].GetIfaceForOLT(olt), nets[0].containerId[0:12])
 
-		containerPid, err := net.getContainerPid(nets[0].ContainerId)
+		containerPid, err := p.spanneti.GetContainerPid(nets[0].containerId)
 		if err != nil {
 			return err
 		}
@@ -26,7 +25,7 @@ func (net *Network) tryCreateOLTLink(nets []graph.ContainerNetwork, olt graph.Ol
 }
 
 //tryCleanupOLTLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
-func (net *Network) tryCleanupOLTLink(nets []graph.ContainerNetwork, olt graph.OltLink) error {
+func (net *oltPlugin) tryCleanupOLTLink(nets []OltData, olt OltLink) error {
 
 	//TODO: how to do this?
 	//if len(nets) != 1 {
@@ -45,7 +44,7 @@ func (net *Network) tryCleanupOLTLink(nets []graph.ContainerNetwork, olt graph.O
 }
 
 //tryCleanupSharedSTagLink checks if this s-tag has zero containers, and if so, deletes the shared interface
-func (net *Network) tryCleanupSharedOLTLink(sTagNets []graph.ContainerNetwork, sTag uint16) error {
+func (net *oltPlugin) tryCleanupSharedOLTLink(sTagNets []OltData, sTag uint16) error {
 	if len(sTagNets) == 0 {
 		fmt.Printf("Should clean shared interface (fabric.%d)\n", sTag)
 		if err := resolver.DeleteSharedOLTInterface(sTag); err != nil {

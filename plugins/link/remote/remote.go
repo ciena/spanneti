@@ -1,30 +1,28 @@
 package remote
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/resolver"
-	"context"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti"
 	"errors"
 	"fmt"
-	"github.com/docker/docker/client"
 	"net"
 	"sync"
 	"time"
 )
 
 type RemoteManager struct {
+	spanneti.Spanneti
 	tunnelMan   peer.TunnelManager
 	peerId      peer.PeerID
 	fabricIp    string
-	client      *client.Client
 	resyncMutex sync.Mutex
-	graph       *graph.Graph
-	eventBus    chan<- graph.LinkID
-	outOfSync   map[peer.PeerID]map[graph.LinkID]bool
+	eventBus    spanneti.Plugin
+	outOfSync   map[peer.PeerID]map[types.LinkID]bool
 }
 
-func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, allNetGraphs []graph.ContainerNetwork) (*RemoteManager, error) {
+func New(spanneti spanneti.Spanneti, plugin spanneti.Plugin) (*RemoteManager, error) {
 	fmt.Print("Determining fabric IP... ")
 	fabricIp, err := resolver.DetermineFabricIp()
 	if err != nil {
@@ -36,20 +34,19 @@ func New(network *graph.Graph, client *client.Client, ch chan<- graph.LinkID, al
 		tunnelMan: peer.NewManager(),
 		peerId:    determineOwnId(),
 		fabricIp:  fabricIp,
-		client:    client,
-		graph:     network,
-		eventBus:  ch,
-		outOfSync: make(map[peer.PeerID]map[graph.LinkID]bool),
+		Spanneti:  spanneti,
+		eventBus:  plugin,
+		outOfSync: make(map[peer.PeerID]map[types.LinkID]bool),
 	}
 
 	//scan for existing remote links
-	for _, netGraph := range allNetGraphs {
-		containerPid, err := man.getContainerPid(netGraph.ContainerId)
+	for _, linkData := range man.GetAllData().([]types.LinkData) {
+		containerPid, err := man.GetContainerPid(linkData.ContainerID)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		for ethName, linkId := range netGraph.Links {
+		for ethName, linkId := range linkData.Links {
 			man.tunnelMan.FindExisting(linkId, ethName, containerPid)
 		}
 	}
@@ -111,7 +108,7 @@ func determineOwnId() peer.PeerID {
 //get availability from remote
 //provision on remote
 //provision locally
-func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, containerPid int) (bool, error) {
+func (man *RemoteManager) TryConnect(linkId types.LinkID, ethName string, containerPid int) (bool, error) {
 	peerIps, possibilities := man.getPossibilities(linkId)
 
 	if len(possibilities) != 1 {
@@ -180,7 +177,7 @@ func (man *RemoteManager) TryConnect(linkId graph.LinkID, ethName string, contai
 	return true, nil
 }
 
-func (man *RemoteManager) TryCleanup(linkId graph.LinkID) error {
+func (man *RemoteManager) TryCleanup(linkId types.LinkID) error {
 	peers, err := LookupPeerIps()
 	if err != nil {
 		panic(err)
@@ -203,7 +200,7 @@ func (man *RemoteManager) TryCleanup(linkId graph.LinkID) error {
 	return err
 }
 
-func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, []getResponse) {
+func (man *RemoteManager) getPossibilities(linkId types.LinkID) ([]peer.PeerID, []getResponse) {
 	var peerIps []peer.PeerID
 	var possibilities []getResponse
 
@@ -232,12 +229,4 @@ func (man *RemoteManager) getPossibilities(linkId graph.LinkID) ([]peer.PeerID, 
 	}
 
 	return peerIps, possibilities
-}
-
-func (man *RemoteManager) getContainerPid(containerId graph.ContainerID) (int, error) {
-	if container, err := man.client.ContainerInspect(context.Background(), string(containerId)); err != nil {
-		return 0, err
-	} else {
-		return container.State.Pid, nil
-	}
 }

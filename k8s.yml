@@ -12,6 +12,12 @@ spec:
       containers:
       - securityContext:
           privileged: true
+#          capabilities:
+#            add:
+#            - NET_ADMIN
+#            - SYS_ADMIN
+#            - SYS_PTRACE
+#        container.apparmor.security.beta.kubernetes.io/spanneti:
         image: khagerma/spanneti:dev
         imagePullPolicy: Always
         name: spanneti

@@ -17,11 +17,11 @@ docker build -t spanneti \
 
 if [ "$CHANGED" != "true" ]; then
 	if [ "$GIT_BRANCH" == "master" ]; then
-		docker rmi "khagerma/spanneti:0.$GIT_COMMIT_NUM"
+		docker rmi "khagerma/spanneti:0.$GIT_COMMIT_NUM" || true
 		docker tag spanneti "khagerma/spanneti:0.$GIT_COMMIT_NUM"
 	else
-		docker rmi "khagerma/spanneti:$GIT_BRANCH-0.$GIT_COMMIT_NUM"
-		docker tag spanneti "khagerma/spanneti:$GIT_BRANCH-0.$GIT_COMMIT_NUM"
+		docker rmi "khagerma/spanneti:$(echo "$GIT_BRANCH" | sed -e 's/\//_/g')-0.$GIT_COMMIT_NUM" || true
+		docker tag spanneti "khagerma/spanneti:$(echo "$GIT_BRANCH" | sed -e 's/\//_/g')-0.$GIT_COMMIT_NUM"
 	fi
 fi
 

@@ -1,8 +1,8 @@
 package remote
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/graph"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/network/remote/peer"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -29,7 +29,7 @@ func (man *RemoteManager) runServer() {
 }
 
 type linkResponse struct {
-	LinkId   graph.LinkID   `json:"link-id"`
+	LinkId   types.LinkID   `json:"link-id"`
 	TunnelId *peer.TunnelID `json:"tunnel-id,omitempty"`
 }
 
@@ -40,8 +40,8 @@ func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var links []graph.LinkID
-	err = json.Unmarshal(data, &links)
+	var linkIds []types.LinkID
+	err = json.Unmarshal(data, &linkIds)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -50,8 +50,8 @@ func (man *RemoteManager) resyncHandler(w http.ResponseWriter, r *http.Request) 
 
 	//spin off process to run the events
 	go func() {
-		for _, link := range links {
-			man.eventBus <- link
+		for _, linkId := range linkIds {
+			man.eventBus.Event("link", linkId)
 		}
 	}()
 
@@ -66,9 +66,9 @@ type getResponse struct {
 
 func (man *RemoteManager) getLinkHandler(w http.ResponseWriter, r *http.Request) {
 	fabricIp := mux.Vars(r)["fabricIp"]
-	linkId := graph.LinkID(mux.Vars(r)["linkId"])
+	linkId := types.LinkID(mux.Vars(r)["linkId"])
 
-	if related := man.graph.GetRelatedTo(linkId); len(related) != 1 {
+	if related := man.GetRelatedTo("link", linkId).([]types.LinkData); len(related) != 1 {
 		//linkId not found, or not available
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -111,7 +111,7 @@ type linkProposalResponse struct {
 
 func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Request) {
 	fabricIp := mux.Vars(r)["fabricIp"]
-	linkId := graph.LinkID(mux.Vars(r)["linkId"])
+	linkId := types.LinkID(mux.Vars(r)["linkId"])
 
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -133,14 +133,14 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 		status:       http.StatusInternalServerError,
 	}
 
-	related := man.graph.GetRelatedTo(linkId)
+	related := man.GetRelatedTo("link", linkId).([]types.LinkData)
 	if len(related) != 1 {
 		//linkId not found, or not available
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	containerPid, err := man.getContainerPid(related[0].ContainerId)
+	containerPid, err := man.GetContainerPid(related[0].ContainerID)
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -180,13 +180,13 @@ func (man *RemoteManager) updateLinkHandler(w http.ResponseWriter, r *http.Reque
 
 func (man *RemoteManager) deleteLinkHandler(w http.ResponseWriter, r *http.Request) {
 	fabricIp := mux.Vars(r)["fabricIp"]
-	linkId := graph.LinkID(mux.Vars(r)["linkId"])
+	linkId := types.LinkID(mux.Vars(r)["linkId"])
 
 	if _, exists := man.tunnelMan.TunnelFor(fabricIp, linkId); exists {
 		defer func() {
 			//send an event for this linkId
 			go func() {
-				man.eventBus <- linkId
+				man.eventBus.Event("link", linkId)
 			}()
 		}()
 		if err := man.tunnelMan.Deallocate(linkId); err != nil {
