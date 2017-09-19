@@ -1,6 +1,6 @@
 FROM golang:1.9.0 as build
 
-ARG PROJECT_PATH=bitbucket.ciena.com/BP_ONOS/spanneti
+ARG PROJECT_PATH=github.com/ciena/spanneti
 ARG FILE_NAME=spanneti
 
 WORKDIR /go/src/$PROJECT_PATH
@@ -31,7 +31,7 @@ RUN go build -v -tags netgo \
 
 # create final container
 FROM alpine:3.5
-ARG PROJECT_PATH=bitbucket.ciena.com/BP_ONOS/spanneti
+ARG PROJECT_PATH=github.com/ciena/spanneti
 ARG FILE_NAME=spanneti
 COPY --from=build /go/src/$PROJECT_PATH/build/$FILE_NAME /bin/$FILE_NAME
 CMD ["spanneti"]

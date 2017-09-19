@@ -1,7 +1,7 @@
 package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
+	"github.com/ciena/spanneti/spanneti/graph"
 )
 
 type linkID string

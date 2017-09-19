@@ -1,7 +1,7 @@
 package spanneti
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
+	"github.com/ciena/spanneti/spanneti/graph"
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"

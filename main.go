@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/olt"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti"
+	"github.com/ciena/spanneti/plugins/link"
+	"github.com/ciena/spanneti/plugins/olt"
+	"github.com/ciena/spanneti/spanneti"
 )
 
 func main() {

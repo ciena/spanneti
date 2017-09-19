@@ -9,7 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
+	"github.com/ciena/spanneti/spanneti/graph"
 )
 
 var (

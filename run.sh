@@ -9,4 +9,4 @@ docker run --rm -ti \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $GOPATH/src:/go/src \
   golang:1.8.1 \
-  bash -c 'cd /go/src/bitbucket.ciena.com/BP_ONOS/spanneti; bash'
+  bash -c 'cd /go/src/github.com/ciena/spanneti; bash'

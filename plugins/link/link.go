@@ -1,8 +1,8 @@
 package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti"
+	"github.com/ciena/spanneti/resolver"
+	"github.com/ciena/spanneti/spanneti"
 	"fmt"
 	"reflect"
 	"sync"

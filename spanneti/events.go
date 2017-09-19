@@ -1,7 +1,7 @@
 package spanneti
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
+	"github.com/ciena/spanneti/spanneti/graph"
 )
 
 func (net *spanneti) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
