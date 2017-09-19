@@ -1,8 +1,6 @@
-package remote
+package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -15,7 +13,7 @@ import (
 )
 
 //requestState GETs a link
-func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId types.LinkID) (getResponse, bool, error) {
+func (man *LinkManager) requestState(peerIp peerID, linkId linkID) (getResponse, bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -63,7 +61,7 @@ func (man *RemoteManager) requestState(peerIp peer.PeerID, linkId types.LinkID) 
 }
 
 //requestSetup PUTs a link
-func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId types.LinkID, tunnelId peer.TunnelID) (bool, peer.TunnelID, error) {
+func (man *LinkManager) requestSetup(peerIp peerID, linkId linkID, tunnelId tunnelID) (bool, tunnelID, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -128,7 +126,7 @@ func (man *RemoteManager) requestSetup(peerIp peer.PeerID, linkId types.LinkID, 
 }
 
 //requestDelete DELETES a link
-func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId types.LinkID) error {
+func (man *LinkManager) requestDelete(peerId peerID, linkId linkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -159,7 +157,7 @@ func (man *RemoteManager) requestDelete(peerId peer.PeerID, linkId types.LinkID)
 }
 
 //tryResyncUnsafe tries to have the other side resync the given list of links
-func (man *RemoteManager) tryResyncUnsafe(peerId peer.PeerID, linkIds []types.LinkID) error {
+func (man *LinkManager) tryResyncUnsafe(peerId peerID, linkIds []linkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{

@@ -1,14 +1,12 @@
-package remote
+package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
 	"fmt"
 	"time"
 )
 
 //unableToSync adds a link to the outOfSync list for the given peer
-func (man *RemoteManager) unableToSync(peerId peer.PeerID, linkId types.LinkID) {
+func (man *LinkManager) unableToSync(peerId peerID, linkId linkID) {
 	if peerId == man.peerId {
 		panic("unableToSync() called with self as peer.  Are you sure you want to do that?")
 	}
@@ -22,13 +20,13 @@ func (man *RemoteManager) unableToSync(peerId peer.PeerID, linkId types.LinkID) 
 
 	linkIdMap, have := man.outOfSync[peerId]
 	if !have {
-		linkIdMap = make(map[types.LinkID]bool)
+		linkIdMap = make(map[linkID]bool)
 		man.outOfSync[peerId] = linkIdMap
 	}
 	linkIdMap[linkId] = true
 }
 
-func (man *RemoteManager) resyncProcess() {
+func (man *LinkManager) resyncProcess() {
 	isOutOfSync := true
 	for isOutOfSync {
 		time.Sleep(time.Second)
@@ -36,7 +34,7 @@ func (man *RemoteManager) resyncProcess() {
 
 		man.resyncMutex.Lock()
 		for peerId, linkIdMap := range man.outOfSync {
-			linkIds := make([]types.LinkID, len(linkIdMap))
+			linkIds := make([]linkID, len(linkIdMap))
 			i := 0
 			for linkId := range linkIdMap {
 				linkIds[i] = linkId

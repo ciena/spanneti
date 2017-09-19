@@ -7,33 +7,29 @@ import (
 	"reflect"
 )
 
-type oltPlugin struct {
-	spanneti spanneti.Spanneti
+const PLUGIN_NAME = "olt.plugin.spanneti.opencord.org"
+
+type oltPlugin spanneti.Spanneti
+
+func LoadPlugin(spanneti spanneti.Spanneti) {
+	p := oltPlugin(spanneti)
+	spanneti.LoadPlugin(
+		PLUGIN_NAME,
+		p.Start,
+		p.Event,
+		reflect.TypeOf(OltData{}),
+	)
 }
 
-func New() *oltPlugin {
-	return &oltPlugin{}
-}
-
-func (p oltPlugin) Name() string {
-	return "olt.plugin.spanneti.opencord.org"
-}
-
-func (p *oltPlugin) Start(spanneti spanneti.Spanneti) {
-	p.spanneti = spanneti
-
+func (p oltPlugin) Start() {
 	// cleanup unused interfaces that may have been created beforehand
 	for _, sTag := range resolver.GetSharedOLTInterfaces() {
 		p.Event("s-tag", sTag)
 	}
 }
 
-func (p oltPlugin) DataType() reflect.Type {
-	return reflect.TypeOf(OltData{})
-}
-
 func (p oltPlugin) Event(key string, value interface{}) {
-	nets := p.spanneti.GetRelatedTo(key, value).([]OltData)
+	nets := p.GetRelatedTo(PLUGIN_NAME, key, value).([]OltData)
 
 	switch key {
 	case "olt":

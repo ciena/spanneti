@@ -12,7 +12,7 @@ func (p *oltPlugin) tryCreateOLTLink(nets []OltData, olt OltLink) error {
 			olt,
 			nets[0].GetIfaceForOLT(olt), nets[0].containerId[0:12])
 
-		containerPid, err := p.spanneti.GetContainerPid(nets[0].containerId)
+		containerPid, err := p.GetContainerPid(nets[0].containerId)
 		if err != nil {
 			return err
 		}

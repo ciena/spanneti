@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
 )
 
 var (
@@ -39,10 +40,31 @@ func printLogo() {
 	//It's simple, we kill the PACketMAN
 }
 
-func Start(plugins ...Plugin) {
-	printLogo()
+type Spanneti struct {
+	*spanneti
+}
 
-	VerifyPlugins(plugins)
+func New() Spanneti {
+	printLogo()
+	client, err := client.NewEnvClient()
+	if err != nil {
+		panic(err)
+	}
+
+	spanneti := &spanneti{
+		graph:   graph.New(),
+		client:  client,
+		plugins: make(map[string]*Plugin),
+	}
+
+	return Spanneti{spanneti}
+}
+
+func (s *spanneti) Start() {
+	if s.started {
+		return
+	}
+	s.started = true
 
 	//listen for shutdown signals
 	sigChan := make(chan os.Signal, 1)
@@ -56,11 +78,11 @@ func Start(plugins ...Plugin) {
 	eventChan, errChan := cli.Events(context.Background(), types.EventsOptions{})
 
 	//2. initialize the network
-	spanneti := newSpanneti(plugins)
+	s.init()
 
 	//3. apply changes that happened while network was initializing,
 	//   and continue listening for events
-	eventLoop(spanneti, eventChan, errChan, sigChan)
+	eventLoop(s, eventChan, errChan, sigChan)
 }
 
 func eventLoop(spanneti *spanneti, eventChan <-chan events.Message, errChan <-chan error, sigChan <-chan os.Signal) {

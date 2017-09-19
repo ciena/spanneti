@@ -12,26 +12,8 @@ import (
 type spanneti struct {
 	graph   *graph.Graph
 	client  *client.Client
-	plugins map[string]Plugin
-}
-
-func newSpanneti(plugins []Plugin) *spanneti {
-	client, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	net := &spanneti{
-		graph:   graph.New(),
-		client:  client,
-		plugins: make(map[string]Plugin),
-	}
-	for _, plugin := range plugins {
-		net.plugins[plugin.Name()] = plugin
-	}
-
-	net.init()
-	return net
+	plugins map[string]*Plugin
+	started bool
 }
 
 func (spanneti *spanneti) init() {
@@ -57,8 +39,8 @@ func (spanneti *spanneti) init() {
 	}
 
 	//start plugins
-	for name, plugin := range spanneti.plugins {
-		plugin.Start(Spanneti{spanneti: spanneti, plugin: name})
+	for _, plugin := range spanneti.plugins {
+		plugin.startCallback()
 	}
 
 	//5. - fire all the events for the now-ready network graph

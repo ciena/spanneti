@@ -1,13 +1,42 @@
 package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
 	"fmt"
 )
 
+func (plugin *LinkManager) event(key string, value interface{}) {
+	switch key {
+	case "link":
+		fmt.Println("Event for link:", value)
+
+		linkId := value.(linkID)
+
+		nets := plugin.GetRelatedTo(PLUGIN_NAME, key, linkId).([]LinkData)
+
+		//setup if the link exists
+		if err := plugin.tryCreateContainerLink(nets, linkId); err != nil {
+			fmt.Println(err)
+		}
+
+		//teardown if the link does not exist
+		if err := plugin.tryCleanupContainerLink(nets, linkId); err != nil {
+			fmt.Println(err)
+		}
+
+		//try to setup connection to container
+		if err := plugin.tryCreateRemoteLink(nets, linkId); err != nil {
+			fmt.Println(err)
+		}
+
+		if err := plugin.tryCleanupRemoteLink(nets, linkId); err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
 //tryCreateContainerLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
-func (plugin *linkPlugin) tryCreateContainerLink(nets []types.LinkData, linkId types.LinkID) error {
+func (plugin *LinkManager) tryCreateContainerLink(nets []LinkData, linkId linkID) error {
 	if len(nets) == 2 {
 		fmt.Printf("Should link (linkId: %s):\n  %s in %s\n  %s in %s\n",
 			linkId,
@@ -31,7 +60,7 @@ func (plugin *linkPlugin) tryCreateContainerLink(nets []types.LinkData, linkId t
 }
 
 //tryCleanupContainerLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
-func (plugin *linkPlugin) tryCleanupContainerLink(nets []types.LinkData, linkId types.LinkID) error {
+func (plugin *LinkManager) tryCleanupContainerLink(nets []LinkData, linkId linkID) error {
 	if len(nets) == 1 {
 		fmt.Printf("Should clean (linkId: %s)\n", linkId)
 		containerPid, err := plugin.GetContainerPid(nets[0].ContainerID)
@@ -46,14 +75,14 @@ func (plugin *linkPlugin) tryCleanupContainerLink(nets []types.LinkData, linkId 
 }
 
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
-func (plugin *linkPlugin) tryCreateRemoteLink(nets []types.LinkData, linkId types.LinkID) error {
+func (plugin *LinkManager) tryCreateRemoteLink(nets []LinkData, linkId linkID) error {
 	if len(nets) == 1 {
 		fmt.Printf("Should link remote (linkId: %s):\n  %s in %s\n", linkId, nets[0].GetIfaceFor(linkId), nets[0].ContainerID[0:12])
 		containerPid, err := plugin.GetContainerPid(nets[0].ContainerID)
 		if err != nil {
 			return err
 		}
-		if setup, err := plugin.remote.TryConnect(linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
+		if setup, err := plugin.tryConnect(linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
 			fmt.Println(err)
 		} else {
 			fmt.Println("Setup link to remote?:", setup)
@@ -63,10 +92,10 @@ func (plugin *linkPlugin) tryCreateRemoteLink(nets []types.LinkData, linkId type
 }
 
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
-func (net *linkPlugin) tryCleanupRemoteLink(nets []types.LinkData, linkId types.LinkID) error {
+func (net *LinkManager) tryCleanupRemoteLink(nets []LinkData, linkId linkID) error {
 	if len(nets) != 1 {
 		fmt.Printf("Should clean remotes (linkId: %s)\n", linkId)
-		if err := net.remote.TryCleanup(linkId); err != nil {
+		if err := net.tryCleanup(linkId); err != nil {
 			fmt.Println(err)
 		}
 	}

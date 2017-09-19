@@ -1,67 +1,68 @@
 package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
+	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti"
 	"fmt"
 	"reflect"
+	"sync"
 )
 
-type linkPlugin struct {
+const PLUGIN_NAME = "link.plugin.spanneti.opencord.org"
+
+type LinkManager struct {
 	spanneti.Spanneti
-	remote *remote.RemoteManager
+	tunnelMan   tunnelManager
+	peerId      peerID
+	fabricIp    string
+	resyncMutex sync.Mutex
+	outOfSync   map[peerID]map[linkID]bool
 }
 
-func New() *linkPlugin {
-	return &linkPlugin{}
+func newLinkManager(spanneti spanneti.Spanneti) (*LinkManager, error) {
+	fmt.Print("Determining fabric IP... ")
+	fabricIp, err := resolver.DetermineFabricIp()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(fabricIp)
+
+	man := &LinkManager{
+		tunnelMan: newTunnelManager(),
+		peerId:    determineOwnId(),
+		fabricIp:  fabricIp,
+		Spanneti:  spanneti,
+		outOfSync: make(map[peerID]map[linkID]bool),
+	}
+
+	return man, nil
 }
 
-func (p linkPlugin) Name() string {
-	return "link.plugin.spanneti.opencord.org"
+func (man *LinkManager) start() {
+	//scan for existing remote links
+	for _, linkData := range man.GetAllDataFor(PLUGIN_NAME).([]LinkData) {
+		containerPid, err := man.GetContainerPid(linkData.ContainerID)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		for ethName, linkId := range linkData.Links {
+			man.tunnelMan.findExisting(linkId, ethName, containerPid)
+		}
+	}
+
+	go man.runServer()
 }
 
-func (p *linkPlugin) Start(spanneti spanneti.Spanneti) {
-	p.Spanneti = spanneti
-
-	//2. - start serving requests
-	remote, err := remote.New(p.Spanneti, p)
+func LoadPlugin(spanneti spanneti.Spanneti) {
+	plugin, err := newLinkManager(spanneti)
 	if err != nil {
 		panic(err)
 	}
-	p.remote = remote
-}
-
-func (p linkPlugin) DataType() reflect.Type {
-	return reflect.TypeOf(types.LinkData{})
-}
-
-func (plugin *linkPlugin) Event(key string, value interface{}) {
-	switch key {
-	case "link":
-		fmt.Println("Event for link:", value)
-
-		linkId := value.(types.LinkID)
-
-		nets := plugin.GetRelatedTo(key, linkId).([]types.LinkData)
-
-		//setup if the link exists
-		if err := plugin.tryCreateContainerLink(nets, linkId); err != nil {
-			fmt.Println(err)
-		}
-
-		//teardown if the link does not exist
-		if err := plugin.tryCleanupContainerLink(nets, linkId); err != nil {
-			fmt.Println(err)
-		}
-
-		//try to setup connection to container
-		if err := plugin.tryCreateRemoteLink(nets, linkId); err != nil {
-			fmt.Println(err)
-		}
-
-		if err := plugin.tryCleanupRemoteLink(nets, linkId); err != nil {
-			fmt.Println(err)
-		}
-	}
+	spanneti.LoadPlugin(
+		PLUGIN_NAME,
+		plugin.start,
+		plugin.event,
+		reflect.TypeOf(LinkData{}),
+	)
 }

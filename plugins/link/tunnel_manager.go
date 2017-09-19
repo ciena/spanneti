@@ -1,40 +1,38 @@
-package peer
+package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
 	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
 	"fmt"
 	"sync"
 )
 
-type PeerID string
-type TunnelID uint32
+type tunnelID uint32
 
 const NUM_TUNNEL_IDS = 1 << 24
 
-type TunnelManager struct {
+type tunnelManager struct {
 	mutex sync.Mutex
 	//peer             map[string]*remotePeer
-	tunnelForId   map[TunnelID]*tunnel
-	tunnelForLink map[types.LinkID]*tunnel
+	tunnelForId   map[tunnelID]*tunnel
+	tunnelForLink map[linkID]*tunnel
 }
 
 type tunnel struct {
-	id           TunnelID
-	linkId       types.LinkID
+	id           tunnelID
+	linkId       linkID
 	fabricIp     string
 	ethName      string
 	containerPid int
 }
 
-func NewManager() TunnelManager {
-	return TunnelManager{
-		tunnelForId:   make(map[TunnelID]*tunnel),
-		tunnelForLink: make(map[types.LinkID]*tunnel),
+func newTunnelManager() tunnelManager {
+	return tunnelManager{
+		tunnelForId:   make(map[tunnelID]*tunnel),
+		tunnelForLink: make(map[linkID]*tunnel),
 	}
 }
 
-func (man *TunnelManager) Allocate(linkId types.LinkID, ethName string, containerPid int, tunnelId TunnelID, fabricIp string) (bool, error) {
+func (man *tunnelManager) allocate(linkId linkID, ethName string, containerPid int, tunnelId tunnelID, fabricIp string) (bool, error) {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
@@ -79,14 +77,14 @@ func (man *TunnelManager) Allocate(linkId types.LinkID, ethName string, containe
 	return true, nil
 }
 
-func (man *TunnelManager) Deallocate(linkId types.LinkID) error {
+func (man *tunnelManager) deallocate(linkId linkID) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
 	return man.deallocateUnsafe(linkId)
 }
 
-func (man *TunnelManager) deallocateUnsafe(linkId types.LinkID) error {
+func (man *tunnelManager) deallocateUnsafe(linkId linkID) error {
 	if tunnel, have := man.tunnelForLink[linkId]; have {
 		fmt.Printf("Teardown link %s:%s to %s via %d\n", tunnel.ethName, linkId, tunnel.fabricIp, tunnel.id)
 		if err := resolver.DeleteContainerRemoteInterface(tunnel.ethName, tunnel.containerPid); err != nil {
@@ -98,7 +96,7 @@ func (man *TunnelManager) deallocateUnsafe(linkId types.LinkID) error {
 	return nil
 }
 
-func (man *TunnelManager) FindExisting(linkId types.LinkID, ethName string, containerPid int) error {
+func (man *tunnelManager) findExisting(linkId linkID, ethName string, containerPid int) error {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
@@ -108,27 +106,27 @@ func (man *TunnelManager) FindExisting(linkId types.LinkID, ethName string, cont
 	}
 	if exists {
 		tunnel := &tunnel{
-			id:           TunnelID(tunnelId),
+			id:           tunnelID(tunnelId),
 			linkId:       linkId,
 			fabricIp:     fabricIp,
 			ethName:      ethName,
 			containerPid: containerPid,
 		}
-		man.tunnelForId[TunnelID(tunnelId)] = tunnel
+		man.tunnelForId[tunnelID(tunnelId)] = tunnel
 		man.tunnelForLink[linkId] = tunnel
 	}
 	return nil
 }
 
-func (man *TunnelManager) FirstAvailableTunnelId() *TunnelID {
+func (man *tunnelManager) firstAvailableTunnelId() *tunnelID {
 	return man.availableTunnelId(0)
 }
 
-func (man *TunnelManager) NextAvailableTunnelId(after TunnelID) *TunnelID {
+func (man *tunnelManager) nextAvailableTunnelId(after tunnelID) *tunnelID {
 	return man.availableTunnelId(after + 1)
 }
 
-func (man *TunnelManager) availableTunnelId(after TunnelID) *TunnelID {
+func (man *tunnelManager) availableTunnelId(after tunnelID) *tunnelID {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
@@ -140,7 +138,7 @@ func (man *TunnelManager) availableTunnelId(after TunnelID) *TunnelID {
 	return nil
 }
 
-func (man *TunnelManager) TunnelFor(fabricIp string, linkId types.LinkID) (TunnelID, bool) {
+func (man *tunnelManager) tunnelFor(fabricIp string, linkId linkID) (tunnelID, bool) {
 	tunnel, allocated := man.tunnelForLink[linkId]
 	if !allocated || tunnel.fabricIp != fabricIp {
 		return 0, false

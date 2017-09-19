@@ -3,29 +3,54 @@ package spanneti
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
 	"context"
+	"reflect"
 )
 
-type Spanneti struct {
-	*spanneti
-	plugin string
+func (s *spanneti) LoadPlugin(name string, startCallback func(), eventCallback func(key string, value interface{}), dataType reflect.Type) {
+	if s.started {
+		panic("cannot load plugins after spanneti has started")
+	}
+
+	plugin := &Plugin{
+		name:          name,
+		startCallback: startCallback,
+		eventCallback: eventCallback,
+		dataType:      dataType,
+	}
+
+	VerifyPlugin(plugin)
+
+	s.plugins[name] = plugin
 }
 
-func (spanneti Spanneti) GetAllData() interface{} {
+func (spanneti *spanneti) GetAllDataFor(plugin string) interface{} {
+	if !spanneti.started {
+		panic("spanneti not started")
+	}
+
 	return spanneti.graph.GetAllForPlugin(
-		spanneti.plugin,
-		spanneti.plugins[spanneti.plugin].DataType())
+		plugin,
+		spanneti.plugins[plugin].dataType)
 }
 
-func (spanneti Spanneti) GetRelatedTo(key string, value interface{}) interface{} {
+func (spanneti *spanneti) GetRelatedTo(plugin, key string, value interface{}) interface{} {
+	if !spanneti.started {
+		panic("spanneti not started")
+	}
+
 	return spanneti.graph.GetRelatedTo(
-		spanneti.plugin,
+		plugin,
 		key,
 		value,
-		spanneti.plugins[spanneti.plugin].DataType())
+		spanneti.plugins[plugin].dataType)
 }
 
-func (net *spanneti) GetContainerPid(containerId graph.ContainerID) (int, error) {
-	if container, err := net.client.ContainerInspect(context.Background(), string(containerId)); err != nil {
+func (spanneti *spanneti) GetContainerPid(containerId graph.ContainerID) (int, error) {
+	if !spanneti.started {
+		panic("spanneti not started")
+	}
+
+	if container, err := spanneti.client.ContainerInspect(context.Background(), string(containerId)); err != nil {
 		return 0, err
 	} else {
 		return container.State.Pid, nil

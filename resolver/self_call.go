@@ -10,7 +10,10 @@ import (
 	"os/exec"
 )
 
-func SelfCall() bool {
+// init checks if a function in this package has called itself
+// is it has, the requested function is executed, and the program exits
+// if it has not, the program continues to the main
+func init() {
 	isSelfCall := flag.Bool("self", false, "")
 	command := flag.String("command", "", "")
 	ethName := flag.String("eth-name", "", "")
@@ -24,7 +27,7 @@ func SelfCall() bool {
 	flag.Parse()
 
 	if !*isSelfCall {
-		return false
+		return
 	}
 
 	var output interface{}
@@ -68,7 +71,7 @@ func SelfCall() bool {
 		//print output to stdout
 		fmt.Printf("%s", data)
 	}
-	return true
+	os.Exit(0)
 }
 
 func execSelf(command string, args ...string) ([]byte, error) {

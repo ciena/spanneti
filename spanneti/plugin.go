@@ -3,45 +3,44 @@ package spanneti
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
 	"fmt"
+	"github.com/pkg/errors"
 	"reflect"
 )
 
-type Plugin interface {
-	Name() string
-	Start(spanneti Spanneti)
-	Event(key string, value interface{})
-	DataType() reflect.Type
+type Plugin struct {
+	name          string
+	startCallback func()
+	eventCallback func(key string, value interface{})
+	dataType      reflect.Type
 }
 
 func (spanneti *spanneti) getPluginData() map[string]reflect.Type {
 	ret := make(map[string]reflect.Type)
 	for name, plugin := range spanneti.plugins {
-		ret[name] = plugin.DataType()
+		ret[name] = plugin.dataType
 	}
 	return ret
 }
 
-func VerifyPlugins(plugins []Plugin) {
-	fmt.Println("Verifying plugins...")
-	for _, plugin := range plugins {
-		fmt.Println(plugin.Name())
+func VerifyPlugin(plugin *Plugin) error {
+	fmt.Printf("Verifying plugin '%s'...\n", plugin.name)
 
-		//verify that the data type implements graph.PluginData
-		if !plugin.DataType().Implements(reflect.TypeOf((*graph.PluginData)(nil)).Elem()) {
-			panic(plugin.DataType().Name() + " does not implement PluginData")
-		}
-
-		//verify keys that can be used for lookup
-		paths, types, err := generatePaths("", plugin.DataType())
-		if err != nil {
-			panic(err)
-		}
-
-		for i := 0; i < len(paths); i++ {
-			fmt.Println("-", paths[i], types[i])
-		}
+	//verify that the data type implements graph.PluginData
+	if !plugin.dataType.Implements(reflect.TypeOf((*graph.PluginData)(nil)).Elem()) {
+		return errors.New(plugin.dataType.Name() + " does not implement PluginData")
 	}
-	fmt.Println("Plugins OK\n")
+
+	//verify keys that can be used for lookup
+	paths, types, err := generatePaths("", plugin.dataType)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(paths); i++ {
+		fmt.Println("-", paths[i], types[i])
+	}
+	fmt.Println("Plugin OK")
+	return nil
 }
 
 func generatePaths(path string, tipe reflect.Type) (paths []string, types []reflect.Type, _ error) {

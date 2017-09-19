@@ -1,13 +1,14 @@
-package types
+package link
 
 import (
 	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti/graph"
 )
 
-type LinkID string
+type linkID string
+type peerID string
 
 type LinkData struct {
-	Links       map[string]LinkID `json:"links" spanneti:"link"`
+	Links       map[string]linkID `json:"links" spanneti:"link"`
 	ContainerID graph.ContainerID
 }
 
@@ -16,7 +17,7 @@ func (d LinkData) SetContainerID(containerId graph.ContainerID) graph.PluginData
 	return d
 }
 
-func (data LinkData) GetIfaceFor(linkId LinkID) string {
+func (data LinkData) GetIfaceFor(linkId linkID) string {
 	for iface, id := range data.Links {
 		if id == linkId {
 			return iface

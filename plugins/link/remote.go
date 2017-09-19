@@ -1,62 +1,14 @@
-package remote
+package link
 
 import (
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/remote/peer"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/plugins/link/types"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/resolver"
-	"bitbucket.ciena.com/BP_ONOS/spanneti/spanneti"
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 )
 
-type RemoteManager struct {
-	spanneti.Spanneti
-	tunnelMan   peer.TunnelManager
-	peerId      peer.PeerID
-	fabricIp    string
-	resyncMutex sync.Mutex
-	eventBus    spanneti.Plugin
-	outOfSync   map[peer.PeerID]map[types.LinkID]bool
-}
-
-func New(spanneti spanneti.Spanneti, plugin spanneti.Plugin) (*RemoteManager, error) {
-	fmt.Print("Determining fabric IP... ")
-	fabricIp, err := resolver.DetermineFabricIp()
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(fabricIp)
-
-	man := &RemoteManager{
-		tunnelMan: peer.NewManager(),
-		peerId:    determineOwnId(),
-		fabricIp:  fabricIp,
-		Spanneti:  spanneti,
-		eventBus:  plugin,
-		outOfSync: make(map[peer.PeerID]map[types.LinkID]bool),
-	}
-
-	//scan for existing remote links
-	for _, linkData := range man.GetAllData().([]types.LinkData) {
-		containerPid, err := man.GetContainerPid(linkData.ContainerID)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		for ethName, linkId := range linkData.Links {
-			man.tunnelMan.FindExisting(linkId, ethName, containerPid)
-		}
-	}
-
-	go man.runServer()
-	return man, nil
-}
-
-func determineOwnId() peer.PeerID {
-	var ownId peer.PeerID
+func determineOwnId() peerID {
+	var ownId peerID
 	backoff := 1
 	for ownId == "" {
 		fmt.Print("Determining own IP... ")
@@ -77,7 +29,7 @@ func determineOwnId() peer.PeerID {
 					if ipnet, ok := iface.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 						if ipnet.IP.To4() != nil {
 							for _, peerIp := range peerIps {
-								if peerIp == peer.PeerID(ipnet.IP.String()) {
+								if peerIp == peerID(ipnet.IP.String()) {
 									ownId = peerIp
 								}
 							}
@@ -108,7 +60,7 @@ func determineOwnId() peer.PeerID {
 //get availability from remote
 //provision on remote
 //provision locally
-func (man *RemoteManager) TryConnect(linkId types.LinkID, ethName string, containerPid int) (bool, error) {
+func (man *LinkManager) tryConnect(linkId linkID, ethName string, containerPid int) (bool, error) {
 	peerIps, possibilities := man.getPossibilities(linkId)
 
 	if len(possibilities) != 1 {
@@ -143,7 +95,7 @@ func (man *RemoteManager) TryConnect(linkId types.LinkID, ethName string, contai
 		}
 
 		//now that it's setup remotely, try to setup locally
-		allocated, err := man.tunnelMan.Allocate(linkId, ethName, containerPid, tunnelId, fabricIp)
+		allocated, err := man.tunnelMan.allocate(linkId, ethName, containerPid, tunnelId, fabricIp)
 		if err != nil {
 			man.unableToSync(peerId, linkId)
 			return false, err
@@ -154,9 +106,9 @@ func (man *RemoteManager) TryConnect(linkId types.LinkID, ethName string, contai
 			localSetup = true
 		} else {
 			//go to next available tunnel ID
-			tunnel := man.tunnelMan.NextAvailableTunnelId(tunnelId)
+			tunnel := man.tunnelMan.nextAvailableTunnelId(tunnelId)
 			//if already exists, and has a higher tunnelId, recommend existing
-			if existingTunnelId, exists := man.tunnelMan.TunnelFor(fabricIp, linkId); exists && existingTunnelId > tunnelId {
+			if existingTunnelId, exists := man.tunnelMan.tunnelFor(fabricIp, linkId); exists && existingTunnelId > tunnelId {
 				tunnel = &existingTunnelId
 			}
 
@@ -177,13 +129,13 @@ func (man *RemoteManager) TryConnect(linkId types.LinkID, ethName string, contai
 	return true, nil
 }
 
-func (man *RemoteManager) TryCleanup(linkId types.LinkID) error {
+func (man *LinkManager) tryCleanup(linkId linkID) error {
 	peers, err := LookupPeerIps()
 	if err != nil {
 		panic(err)
 	}
 
-	err = man.tunnelMan.Deallocate(linkId)
+	err = man.tunnelMan.deallocate(linkId)
 
 	for _, peerId := range peers {
 		if man.peerId == peerId {
@@ -200,8 +152,8 @@ func (man *RemoteManager) TryCleanup(linkId types.LinkID) error {
 	return err
 }
 
-func (man *RemoteManager) getPossibilities(linkId types.LinkID) ([]peer.PeerID, []getResponse) {
-	var peerIps []peer.PeerID
+func (man *LinkManager) getPossibilities(linkId linkID) ([]peerID, []getResponse) {
+	var peerIps []peerID
 	var possibilities []getResponse
 
 	peers, err := LookupPeerIps()

@@ -20,7 +20,7 @@ func (net *spanneti) pushContainerEvents(containerNets ...graph.ContainerNetwork
 	for plugin, pluginMap := range todo {
 		for key, keyMap := range pluginMap {
 			for _, value := range keyMap {
-				net.plugins[plugin].Event(key, value)
+				net.plugins[plugin].eventCallback(key, value)
 			}
 		}
 	}
