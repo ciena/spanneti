@@ -13,7 +13,7 @@ import (
 )
 
 //requestState GETs a link
-func (man *LinkManager) requestState(peerIp peerID, linkId linkID) (getResponse, bool, error) {
+func (man *linkPlugin) requestState(peerIp peerID, linkId linkID) (getResponse, bool, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -61,7 +61,7 @@ func (man *LinkManager) requestState(peerIp peerID, linkId linkID) (getResponse,
 }
 
 //requestSetup PUTs a link
-func (man *LinkManager) requestSetup(peerIp peerID, linkId linkID, tunnelId tunnelID) (bool, tunnelID, error) {
+func (man *linkPlugin) requestSetup(peerIp peerID, linkId linkID, tunnelId tunnelID) (bool, tunnelID, error) {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -126,7 +126,7 @@ func (man *LinkManager) requestSetup(peerIp peerID, linkId linkID, tunnelId tunn
 }
 
 //requestDelete DELETES a link
-func (man *LinkManager) requestDelete(peerId peerID, linkId linkID) error {
+func (man *linkPlugin) requestDelete(peerId peerID, linkId linkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{
@@ -157,7 +157,7 @@ func (man *LinkManager) requestDelete(peerId peerID, linkId linkID) error {
 }
 
 //tryResyncUnsafe tries to have the other side resync the given list of links
-func (man *LinkManager) tryResyncUnsafe(peerId peerID, linkIds []linkID) error {
+func (man *resyncManager) tryResyncUnsafe(peerId peerID, linkIds []linkID) error {
 	client := http.Client{
 		Timeout: 300 * time.Millisecond,
 		Transport: &http.Transport{

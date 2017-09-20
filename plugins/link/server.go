@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func (man *LinkManager) runServer() {
+func (man *linkPlugin) runServer() {
 	r := mux.NewRouter()
 	r.HandleFunc("/resync", man.resyncHandler).Methods(http.MethodPost)
 	//r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
@@ -26,7 +26,7 @@ func (man *LinkManager) runServer() {
 	srv.ListenAndServe()
 }
 
-func (man *LinkManager) resyncHandler(w http.ResponseWriter, r *http.Request) {
+func (man *linkPlugin) resyncHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		fmt.Println(http.StatusBadRequest)
@@ -57,7 +57,7 @@ type getResponse struct {
 	Setup    bool     `json:"setup"`
 }
 
-func (man *LinkManager) getLinkHandler(w http.ResponseWriter, r *http.Request) {
+func (man *linkPlugin) getLinkHandler(w http.ResponseWriter, r *http.Request) {
 	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := linkID(mux.Vars(r)["linkId"])
 
@@ -102,7 +102,7 @@ type linkProposalResponse struct {
 	status      int       `json:"-"`
 }
 
-func (man *LinkManager) updateLinkHandler(w http.ResponseWriter, r *http.Request) {
+func (man *linkPlugin) updateLinkHandler(w http.ResponseWriter, r *http.Request) {
 	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := linkID(mux.Vars(r)["linkId"])
 
@@ -171,7 +171,7 @@ func (man *LinkManager) updateLinkHandler(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (man *LinkManager) deleteLinkHandler(w http.ResponseWriter, r *http.Request) {
+func (man *linkPlugin) deleteLinkHandler(w http.ResponseWriter, r *http.Request) {
 	fabricIp := mux.Vars(r)["fabricIp"]
 	linkId := linkID(mux.Vars(r)["linkId"])
 

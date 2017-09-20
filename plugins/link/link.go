@@ -1,44 +1,49 @@
 package link
 
 import (
+	"fmt"
 	"github.com/ciena/spanneti/resolver"
 	"github.com/ciena/spanneti/spanneti"
-	"fmt"
 	"reflect"
-	"sync"
 )
 
 const PLUGIN_NAME = "link.plugin.spanneti.opencord.org"
 
-type LinkManager struct {
+type linkPlugin struct {
 	spanneti.Spanneti
-	tunnelMan   tunnelManager
-	peerId      peerID
-	fabricIp    string
-	resyncMutex sync.Mutex
-	outOfSync   map[peerID]map[linkID]bool
+	resyncManager resyncManager
+	tunnelMan     tunnelManager
+	peerId        peerID
+	fabricIp      string
 }
 
-func newLinkManager(spanneti spanneti.Spanneti) (*LinkManager, error) {
+func LoadPlugin(spanneti spanneti.Spanneti) {
 	fmt.Print("Determining fabric IP... ")
 	fabricIp, err := resolver.DetermineFabricIp()
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	fmt.Println(fabricIp)
 
-	man := &LinkManager{
+	plugin := &linkPlugin{
+		Spanneti: spanneti,
+		resyncManager: resyncManager{
+			outOfSync: make(map[peerID]map[linkID]bool),
+		},
 		tunnelMan: newTunnelManager(),
 		peerId:    determineOwnId(),
 		fabricIp:  fabricIp,
-		Spanneti:  spanneti,
-		outOfSync: make(map[peerID]map[linkID]bool),
 	}
 
-	return man, nil
+	spanneti.LoadPlugin(
+		PLUGIN_NAME,
+		plugin.start,
+		plugin.event,
+		reflect.TypeOf(LinkData{}),
+	)
 }
 
-func (man *LinkManager) start() {
+func (man *linkPlugin) start() {
 	//scan for existing remote links
 	for _, linkData := range man.GetAllDataFor(PLUGIN_NAME).([]LinkData) {
 		containerPid, err := man.GetContainerPid(linkData.ContainerID)
@@ -52,17 +57,4 @@ func (man *LinkManager) start() {
 	}
 
 	go man.runServer()
-}
-
-func LoadPlugin(spanneti spanneti.Spanneti) {
-	plugin, err := newLinkManager(spanneti)
-	if err != nil {
-		panic(err)
-	}
-	spanneti.LoadPlugin(
-		PLUGIN_NAME,
-		plugin.start,
-		plugin.event,
-		reflect.TypeOf(LinkData{}),
-	)
 }

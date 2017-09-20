@@ -1,8 +1,8 @@
 package link
 
 import (
-	"github.com/ciena/spanneti/resolver"
 	"fmt"
+	"github.com/ciena/spanneti/resolver"
 	"sync"
 )
 
@@ -119,20 +119,20 @@ func (man *tunnelManager) findExisting(linkId linkID, ethName string, containerP
 }
 
 func (man *tunnelManager) firstAvailableTunnelId() *tunnelID {
-	return man.availableTunnelId(0)
+	return man.thisOrNextAvailableTunnelId(0)
 }
 
 func (man *tunnelManager) nextAvailableTunnelId(after tunnelID) *tunnelID {
-	return man.availableTunnelId(after + 1)
+	return man.thisOrNextAvailableTunnelId(after + 1)
 }
 
-func (man *tunnelManager) availableTunnelId(after tunnelID) *tunnelID {
+func (man *tunnelManager) thisOrNextAvailableTunnelId(tunnelId tunnelID) *tunnelID {
 	man.mutex.Lock()
 	defer man.mutex.Unlock()
 
-	for ; after < NUM_TUNNEL_IDS; after++ {
-		if _, has := man.tunnelForId[after]; !has {
-			return &after
+	for ; tunnelId < NUM_TUNNEL_IDS; tunnelId++ {
+		if _, has := man.tunnelForId[tunnelId]; !has {
+			return &tunnelId
 		}
 	}
 	return nil

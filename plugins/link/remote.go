@@ -60,8 +60,8 @@ func determineOwnId() peerID {
 //get availability from remote
 //provision on remote
 //provision locally
-func (man *LinkManager) tryConnect(linkId linkID, ethName string, containerPid int) (bool, error) {
-	peerIps, possibilities := man.getPossibilities(linkId)
+func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid int) (bool, error) {
+	peerIps, possibilities := man.getPeersWithLink(linkId)
 
 	if len(possibilities) != 1 {
 		if len(possibilities) == 0 {
@@ -81,23 +81,31 @@ func (man *LinkManager) tryConnect(linkId linkID, ethName string, containerPid i
 	fabricIp := response.FabricIp
 
 	for !localSetup {
+		//until setup remotely
 		for !setup {
-			//
-			// ensure the suggested tunnelId is valid on our side
-			//
-
+			//try to setup remotely
 			var err error
 			setup, tunnelId, err = man.requestSetup(peerId, linkId, tunnelId)
 			if err != nil {
-				man.unableToSync(peerId, linkId)
+				man.resync(peerId, linkId)
 				return false, err
+			}
+
+			//if not setup remotely, verify that the suggested tunnelId is valid
+			if !setup {
+				if tunnel := man.tunnelMan.thisOrNextAvailableTunnelId(tunnelId); tunnel == nil {
+					man.resync(peerId, linkId)
+					return false, errors.New("Out of tunnelIds?")
+				} else {
+					tunnelId = *tunnel
+				}
 			}
 		}
 
 		//now that it's setup remotely, try to setup locally
 		allocated, err := man.tunnelMan.allocate(linkId, ethName, containerPid, tunnelId, fabricIp)
 		if err != nil {
-			man.unableToSync(peerId, linkId)
+			man.resync(peerId, linkId)
 			return false, err
 		}
 
@@ -113,14 +121,14 @@ func (man *LinkManager) tryConnect(linkId linkID, ethName string, containerPid i
 			}
 
 			if tunnel == nil {
-				man.unableToSync(peerId, linkId)
+				man.resync(peerId, linkId)
 				return false, errors.New("Out of tunnelIds?")
 			} else {
 				tunnelId = *tunnel
 			}
 
 			if err := man.requestDelete(peerId, linkId); err != nil {
-				man.unableToSync(peerId, linkId)
+				man.resync(peerId, linkId)
 				return false, err
 			}
 			setup = false
@@ -129,7 +137,7 @@ func (man *LinkManager) tryConnect(linkId linkID, ethName string, containerPid i
 	return true, nil
 }
 
-func (man *LinkManager) tryCleanup(linkId linkID) error {
+func (man *linkPlugin) tryCleanup(linkId linkID) error {
 	peers, err := LookupPeerIps()
 	if err != nil {
 		panic(err)
@@ -144,7 +152,7 @@ func (man *LinkManager) tryCleanup(linkId linkID) error {
 		}
 
 		if err := man.requestDelete(peerId, linkId); err != nil {
-			man.unableToSync(peerId, linkId)
+			man.resync(peerId, linkId)
 			fmt.Println(err)
 			continue
 		}
@@ -152,7 +160,7 @@ func (man *LinkManager) tryCleanup(linkId linkID) error {
 	return err
 }
 
-func (man *LinkManager) getPossibilities(linkId linkID) ([]peerID, []getResponse) {
+func (man *linkPlugin) getPeersWithLink(linkId linkID) ([]peerID, []getResponse) {
 	var peerIps []peerID
 	var possibilities []getResponse
 
@@ -169,7 +177,7 @@ func (man *LinkManager) getPossibilities(linkId linkID) ([]peerID, []getResponse
 
 		response, haveLinkId, err := man.requestState(peerId, linkId)
 		if err != nil {
-			man.unableToSync(peerId, linkId)
+			man.resync(peerId, linkId)
 			fmt.Println(err)
 			continue
 		}

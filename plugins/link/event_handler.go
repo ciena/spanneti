@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func (plugin *LinkManager) event(key string, value interface{}) {
+func (plugin *linkPlugin) event(key string, value interface{}) {
 	switch key {
 	case "link":
 		fmt.Println("Event for link:", value)
@@ -36,7 +36,7 @@ func (plugin *LinkManager) event(key string, value interface{}) {
 }
 
 //tryCreateContainerLink checks if the linkMap contains two containers, and if so, ensures interfaces are set up
-func (plugin *LinkManager) tryCreateContainerLink(nets []LinkData, linkId linkID) error {
+func (plugin *linkPlugin) tryCreateContainerLink(nets []LinkData, linkId linkID) error {
 	if len(nets) == 2 {
 		fmt.Printf("Should link (linkId: %s):\n  %s in %s\n  %s in %s\n",
 			linkId,
@@ -60,7 +60,7 @@ func (plugin *LinkManager) tryCreateContainerLink(nets []LinkData, linkId linkID
 }
 
 //tryCleanupContainerLink checks if the linkMap contains only one container, and if so, ensures interfaces are deleted
-func (plugin *LinkManager) tryCleanupContainerLink(nets []LinkData, linkId linkID) error {
+func (plugin *linkPlugin) tryCleanupContainerLink(nets []LinkData, linkId linkID) error {
 	if len(nets) == 1 {
 		fmt.Printf("Should clean (linkId: %s)\n", linkId)
 		containerPid, err := plugin.GetContainerPid(nets[0].ContainerID)
@@ -75,7 +75,7 @@ func (plugin *LinkManager) tryCleanupContainerLink(nets []LinkData, linkId linkI
 }
 
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
-func (plugin *LinkManager) tryCreateRemoteLink(nets []LinkData, linkId linkID) error {
+func (plugin *linkPlugin) tryCreateRemoteLink(nets []LinkData, linkId linkID) error {
 	if len(nets) == 1 {
 		fmt.Printf("Should link remote (linkId: %s):\n  %s in %s\n", linkId, nets[0].GetIfaceFor(linkId), nets[0].ContainerID[0:12])
 		containerPid, err := plugin.GetContainerPid(nets[0].ContainerID)
@@ -92,7 +92,7 @@ func (plugin *LinkManager) tryCreateRemoteLink(nets []LinkData, linkId linkID) e
 }
 
 //tryCreateRemoteLink checks if the linkMap contains one container, and if so, tries to set up a remote link
-func (net *LinkManager) tryCleanupRemoteLink(nets []LinkData, linkId linkID) error {
+func (net *linkPlugin) tryCleanupRemoteLink(nets []LinkData, linkId linkID) error {
 	if len(nets) != 1 {
 		fmt.Printf("Should clean remotes (linkId: %s)\n", linkId)
 		if err := net.tryCleanup(linkId); err != nil {
