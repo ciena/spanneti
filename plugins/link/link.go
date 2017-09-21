@@ -37,9 +37,10 @@ func LoadPlugin(spanneti spanneti.Spanneti) {
 
 	spanneti.LoadPlugin(
 		PLUGIN_NAME,
+		reflect.TypeOf(LinkData{}),
 		plugin.start,
 		plugin.event,
-		reflect.TypeOf(LinkData{}),
+		plugin.newHttpHandler(),
 	)
 }
 
@@ -55,6 +56,4 @@ func (man *linkPlugin) start() {
 			man.tunnelMan.findExisting(linkId, ethName, containerPid)
 		}
 	}
-
-	go man.runServer()
 }

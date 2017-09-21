@@ -1,17 +1,19 @@
 package spanneti
 
 import (
-	"github.com/ciena/spanneti/spanneti/graph"
 	"fmt"
+	"github.com/ciena/spanneti/spanneti/graph"
 	"github.com/pkg/errors"
+	"net/http"
 	"reflect"
 )
 
 type Plugin struct {
 	name          string
+	dataType      reflect.Type
 	startCallback func()
 	eventCallback func(key string, value interface{})
-	dataType      reflect.Type
+	httpHandler   http.Handler
 }
 
 func (spanneti *spanneti) getPluginData() map[string]reflect.Type {

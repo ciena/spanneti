@@ -6,24 +6,16 @@ import (
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
-	"time"
 )
 
-func (man *linkPlugin) runServer() {
+func (man *linkPlugin) newHttpHandler() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/resync", man.resyncHandler).Methods(http.MethodPost)
 	//r.HandleFunc("/peer/{peerId}/link/", man.listLinksHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.getLinkHandler).Methods(http.MethodGet)
 	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.updateLinkHandler).Methods(http.MethodPut)
 	r.HandleFunc("/peer/{fabricIp}/link/{linkId}", man.deleteLinkHandler).Methods(http.MethodDelete)
-
-	srv := &http.Server{
-		ReadTimeout:  100 * time.Millisecond,
-		WriteTimeout: 100 * time.Millisecond,
-		Handler:      r,
-		Addr:         string(man.peerId) + ":8080",
-	}
-	srv.ListenAndServe()
+	return r
 }
 
 func (man *linkPlugin) resyncHandler(w http.ResponseWriter, r *http.Request) {

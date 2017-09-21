@@ -25,7 +25,7 @@ func (man *linkPlugin) requestState(peerIp peerID, linkId linkID) (getResponse, 
 
 	request, err := http.NewRequest(
 		http.MethodGet,
-		"http://"+fmt.Sprint(peerIp)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		"http://"+fmt.Sprint(peerIp)+":8080/"+PLUGIN_NAME+"/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
 		return getResponse{}, false, err
@@ -78,7 +78,7 @@ func (man *linkPlugin) requestSetup(peerIp peerID, linkId linkID, tunnelId tunne
 
 	request, err := http.NewRequest(
 		http.MethodPut,
-		"http://"+string(peerIp)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		"http://"+string(peerIp)+":8080/"+PLUGIN_NAME+"/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		bytes.NewReader(data))
 	if err != nil {
 		return false, 0, err
@@ -138,7 +138,7 @@ func (man *linkPlugin) requestDelete(peerId peerID, linkId linkID) error {
 
 	request, err := http.NewRequest(
 		http.MethodDelete,
-		"http://"+string(peerId)+":8080/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
+		"http://"+string(peerId)+":8080/"+PLUGIN_NAME+"/peer/"+url.PathEscape(man.fabricIp)+"/link/"+url.PathEscape(fmt.Sprint(linkId)),
 		nil)
 	if err != nil {
 		return err
@@ -174,7 +174,7 @@ func (man *resyncManager) tryResyncUnsafe(peerId peerID, linkIds []linkID) error
 
 	request, err := http.NewRequest(
 		http.MethodPost,
-		"http://"+fmt.Sprint(peerId)+":8080/resync",
+		"http://"+fmt.Sprint(peerId)+":8080/"+PLUGIN_NAME+"/resync",
 		bytes.NewReader(data))
 	if err != nil {
 		return err

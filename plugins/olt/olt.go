@@ -1,9 +1,9 @@
 package olt
 
 import (
+	"fmt"
 	"github.com/ciena/spanneti/resolver"
 	"github.com/ciena/spanneti/spanneti"
-	"fmt"
 	"reflect"
 )
 
@@ -15,9 +15,10 @@ func LoadPlugin(spanneti spanneti.Spanneti) {
 	p := oltPlugin(spanneti)
 	spanneti.LoadPlugin(
 		PLUGIN_NAME,
+		reflect.TypeOf(OltData{}),
 		p.Start,
 		p.Event,
-		reflect.TypeOf(OltData{}),
+		nil,
 	)
 }
 

@@ -1,9 +1,9 @@
 package spanneti
 
 import (
-	"github.com/ciena/spanneti/spanneti/graph"
 	"context"
 	"fmt"
+	"github.com/ciena/spanneti/spanneti/graph"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"strings"
@@ -42,6 +42,9 @@ func (spanneti *spanneti) init() {
 	for _, plugin := range spanneti.plugins {
 		plugin.startCallback()
 	}
+
+	//start serving requests
+	spanneti.startServer()
 
 	//5. - fire all the events for the now-ready network graph
 	spanneti.pushContainerEvents(netGraphs...)
