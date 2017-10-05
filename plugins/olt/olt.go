@@ -29,7 +29,7 @@ func (p oltPlugin) Start() {
 	}
 }
 
-func (p oltPlugin) Event(key string, value interface{}) {
+func (p oltPlugin) Event(key string, value interface{}) error {
 	nets := p.GetRelatedTo(PLUGIN_NAME, key, value).([]OltData)
 
 	switch key {
@@ -38,12 +38,10 @@ func (p oltPlugin) Event(key string, value interface{}) {
 
 		olt := value.(OltLink)
 
-		if err := p.tryCreateOLTLink(nets, olt); err != nil {
-			fmt.Println(err)
-		}
-
-		if err := p.tryCleanupOLTLink(nets, olt); err != nil {
-			fmt.Println(err)
+		if len(nets) == 1 {
+			if err := p.tryCreateOLTLink(nets, olt); err != nil {
+				return err
+			}
 		}
 
 	case "s-tag":
@@ -51,8 +49,11 @@ func (p oltPlugin) Event(key string, value interface{}) {
 
 		sTag := value.(uint16)
 
-		if err := p.tryCleanupSharedOLTLink(nets, sTag); err != nil {
-			fmt.Println(err)
+		if len(nets) == 0 {
+			if err := p.tryCleanupSharedOLTLink(sTag); err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
+	return nil
 }

@@ -23,6 +23,7 @@ func init() {
 	sTag := flag.Int("s-tag", -1, "")
 	cTag := flag.Int("c-tag", -1, "")
 	tunnelId := flag.Int("tunnel-id", -1, "")
+	tenantIp := flag.String("tenant-ip", "", "")
 	peerFabricIp := flag.String("peer-fabric-ip", "", "")
 	flag.Parse()
 
@@ -33,13 +34,18 @@ func init() {
 	var output interface{}
 	var err error
 	switch *command {
-	case "setup-local-container-link":
-		err = setupLocalContainerLink(*ethName, *containerPid, *ethName1, *containerPid1)
-	case "setup-olt-container-link":
-		err = setupOLTContainerLink(*ethName, *containerPid, *sTag, *cTag)
+
+	//create
+	case "setup-tenant-ip-container-link":
+		err = setupTenantIpContainerLink(*ethName, *containerPid, *tenantIp)
+	case "setup-container-olt-interface":
+		err = setupContainerOLTInterface(*ethName, *containerPid, *sTag, *cTag)
 	case "setup-remote-container-link":
 		err = setupRemoteContainerLink(*ethName, *containerPid, *tunnelId, *peerFabricIp)
+	case "setup-container-peer-link":
+		err = setupContainerPeerLink(*ethName, *containerPid, *ethName1, *containerPid1)
 
+	//delete
 	case "delete-shared-olt-interface":
 		err = deleteSharedOLTInterface(*sTag)
 	case "delete-container-remote-interface":
@@ -47,12 +53,13 @@ func init() {
 	case "delete-container-peer-interface":
 		err = deleteContainerPeerInterface(*ethName, *containerPid)
 
+	//get
 	case "get-shared-olt-interfaces":
 		output, err = getSharedOLTInterfaces()
 	case "find-existing-remote-interface":
 		output, err = findExistingRemoteInterface(*ethName, *containerPid)
-	case "determine-fabric-ip":
-		output, err = determineFabricIp()
+	case "get-fabric-ip":
+		output, err = getFabricIp()
 	}
 
 	//if any errors, print them to stdout

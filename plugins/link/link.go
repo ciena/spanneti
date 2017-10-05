@@ -18,12 +18,10 @@ type linkPlugin struct {
 }
 
 func LoadPlugin(spanneti spanneti.Spanneti) {
-	fmt.Print("Determining fabric IP... ")
-	fabricIp, err := resolver.DetermineFabricIp()
+	fabricIp, err := resolver.GetFabricIp()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(fabricIp)
 
 	plugin := &linkPlugin{
 		Spanneti: spanneti,

@@ -4,25 +4,33 @@ package resolver
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/vishvananda/netlink"
 	"os"
 )
 
 var HOST_INTERFACE_NAME = os.Getenv("HOST_INTERFACE_NAME")
 
-func DetermineFabricIp() (string, error) {
-	data, err := execSelf("determine-fabric-ip")
+var fabricIp string
+
+func GetFabricIp() (string, error) {
+	if fabricIp != "" {
+		return fabricIp, nil
+	}
+
+	fmt.Print("Determining fabric IP... ")
+	data, err := execSelf("get-fabric-ip")
 	if err != nil {
 		return "", err
 	}
-	var fabricIp string
 	if err := json.Unmarshal(data, &fabricIp); err != nil {
 		return "", err
 	}
+	fmt.Println(fabricIp)
 	return fabricIp, nil
 }
 
-func determineFabricIp() (string, error) {
+func getFabricIp() (string, error) {
 	return "10.6.1.1(dummy)", nil
 }
 

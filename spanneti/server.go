@@ -1,7 +1,6 @@
 package spanneti
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 )

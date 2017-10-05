@@ -9,8 +9,8 @@ import (
 )
 
 //SetupLocalContainerLink ensures a veth pair connects the specified containers
-func SetupLocalContainerLink(ethName0 string, containerPid0 int, ethName1 string, containerPid1 int) error {
-	_, err := execSelf("setup-local-container-link",
+func SetupContainerPeerLink(ethName0 string, containerPid0 int, ethName1 string, containerPid1 int) error {
+	_, err := execSelf("setup-container-peer-link",
 		"--eth-name="+ethName0,
 		"--container-pid="+strconv.Itoa(containerPid0),
 		"--eth-name-1="+ethName1,
@@ -19,7 +19,7 @@ func SetupLocalContainerLink(ethName0 string, containerPid0 int, ethName1 string
 }
 
 //SetupLocalContainerLink ensures a veth pair connects the specified containers
-func setupLocalContainerLink(ethName0 string, containerPid0 int, ethName1 string, containerPid1 int) error {
+func setupContainerPeerLink(ethName0 string, containerPid0 int, ethName1 string, containerPid1 int) error {
 	// Lock the OS Thread so we don't accidentally switch namespaces
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -177,4 +177,3 @@ func createVethPairUnsafe(ownHandle *netlink.Handle) (*netlink.Veth, *netlink.Ve
 
 	return link0.(*netlink.Veth), link1.(*netlink.Veth), nil
 }
-

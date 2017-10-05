@@ -14,19 +14,24 @@ import (
 
 var HOST_INTERFACE_NAME = os.Getenv("HOST_INTERFACE_NAME")
 
-func DetermineFabricIp() (string, error) {
-	data, err := execSelf("determine-fabric-ip")
+var fabricIp string
+
+func GetFabricIp() (string, error) {
+	if fabricIp != "" {
+		return fabricIp, nil
+	}
+
+	data, err := execSelf("get-fabric-ip")
 	if err != nil {
 		return "", err
 	}
-	var fabricIp string
 	if err := json.Unmarshal(data, &fabricIp); err != nil {
 		return "", err
 	}
 	return fabricIp, nil
 }
 
-func determineFabricIp() (string, error) {
+func getFabricIp() (string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 

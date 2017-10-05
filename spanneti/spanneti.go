@@ -3,13 +3,14 @@ package spanneti
 import (
 	"context"
 	"fmt"
+	"github.com/ciena/spanneti/spanneti/graph"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
-	"github.com/ciena/spanneti/spanneti/graph"
 )
 
 var (
@@ -44,6 +45,16 @@ type Spanneti struct {
 	*spanneti
 }
 
+type spanneti struct {
+	graph   *graph.Graph
+	client  *client.Client
+	plugins map[string]*Plugin
+	started bool
+
+	outOfSyncMutex sync.Mutex
+	outOfSync      map[resyncElem]bool
+}
+
 func New() Spanneti {
 	printLogo()
 	client, err := client.NewEnvClient()
@@ -52,9 +63,10 @@ func New() Spanneti {
 	}
 
 	spanneti := &spanneti{
-		graph:   graph.New(),
-		client:  client,
-		plugins: make(map[string]*Plugin),
+		graph:     graph.New(),
+		client:    client,
+		plugins:   make(map[string]*Plugin),
+		outOfSync: make(map[resyncElem]bool),
 	}
 
 	return Spanneti{spanneti}

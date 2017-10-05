@@ -5,16 +5,8 @@ import (
 	"fmt"
 	"github.com/ciena/spanneti/spanneti/graph"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	"strings"
 )
-
-type spanneti struct {
-	graph   *graph.Graph
-	client  *client.Client
-	plugins map[string]*Plugin
-	started bool
-}
 
 func (spanneti *spanneti) init() {
 	containers, err := spanneti.client.ContainerList(context.Background(), types.ContainerListOptions{})

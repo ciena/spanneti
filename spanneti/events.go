@@ -4,7 +4,7 @@ import (
 	"github.com/ciena/spanneti/spanneti/graph"
 )
 
-func (net *spanneti) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
+func (spanneti *spanneti) pushContainerEvents(containerNets ...graph.ContainerNetwork) {
 	todo := make(map[string]map[string][]interface{})
 	for _, containerNet := range containerNets {
 		for plugin, keyMap := range containerNet.KeyValueMap() {
@@ -20,7 +20,7 @@ func (net *spanneti) pushContainerEvents(containerNets ...graph.ContainerNetwork
 	for plugin, pluginMap := range todo {
 		for key, keyMap := range pluginMap {
 			for _, value := range keyMap {
-				net.plugins[plugin].eventCallback(key, value)
+				spanneti.FireEvent(plugin, key, value)
 			}
 		}
 	}

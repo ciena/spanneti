@@ -1,23 +1,23 @@
 package resolver
 
 import (
+	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
-	"net"
+	"os"
 	"runtime"
 	"strconv"
 )
 
-func SetupRemoteContainerLink(ethName string, containerPid int, tunnelId int, peerFabricIp string) error {
-	_, err := execSelf("setup-remote-container-link",
+func SetupTenantIpContainerLink(ethName string, containerPid int, tenantIp string) error {
+	_, err := execSelf("setup-tenant-ip-container-link",
 		"--eth-name="+ethName,
 		"--container-pid="+strconv.Itoa(containerPid),
-		"--tunnel-id="+strconv.Itoa(tunnelId),
-		"--peer-fabric-ip="+peerFabricIp)
+		"--tenant-ip="+tenantIp)
 	return err
 }
 
-func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, peerFabricIp string) error {
+func setupTenantIpContainerLink(ethName string, containerPid int, tenantIp string) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -34,8 +34,11 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 
 	//clean up previous
 	if link, err := containerHandle.LinkByName(ethName); err == nil {
-		//if the container exists, but is not a vxlan link, delete it
-		if link, isVxlan := link.(*netlink.Vxlan); !isVxlan {
+		if link, isIPVlan := link.(*netlink.IPVlan); isIPVlan {
+			fmt.Fprintln(os.Stderr, "Interface", ethName, "already exists")
+			return nil
+		} else {
+			//if the interface exists, but is not a vxlan link, delete it
 			if err := containerHandle.LinkDel(link); err != nil {
 				return err
 			}
@@ -54,7 +57,7 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	}
 
 	//delete any pre-existing devices
-	if link, err := hostHandle.LinkByName("cord-vxlan-link"); err == nil {
+	if link, err := hostHandle.LinkByName("cord-ipvlan-lnk"); err == nil {
 		if err := hostHandle.LinkDel(link); err != nil {
 			return err
 		}
@@ -66,22 +69,17 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 		return err
 	}
 
-	//ip link add vxlan0 type vxlan id 0 group 10.6.2.3 dev fabric dstport 4789
-
-	//create veth pair
-	link := &netlink.Vxlan{
+	//create veth
+	link := &netlink.IPVlan{
 		LinkAttrs: netlink.LinkAttrs{
-			Name: "cord-vxlan-link",
+			Name:        "cord-ipvlan-lnk",
+			ParentIndex: fabricLink.Attrs().Index,
 			//TODO: MTU: ???
+			//Namespace: containerPid,
+			//change name
+			//OperState: netlink.OperUp,
 		},
-		VxlanId:      tunnelId,
-		Port:         4789,
-		Group:        net.ParseIP(peerFabricIp),
-		VtepDevIndex: fabricLink.Attrs().Index,
-		//what is required for a pure point-to-point L2 network?
-		Learning: true,
-		L2miss:   true,
-		L3miss:   false,
+		Mode: netlink.IPVLAN_MODE_L3,
 	}
 	if err := hostHandle.LinkAdd(link); err != nil {
 		return err
@@ -93,7 +91,7 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 	}
 
 	//add address
-	addr, err := netlink.ParseAddr("192.168.0.1/24")
+	addr, err := netlink.ParseAddr(tenantIp + "/32")
 	if err != nil {
 		return err
 	}

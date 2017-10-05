@@ -2,12 +2,13 @@ package spanneti
 
 import (
 	"context"
+	"fmt"
 	"github.com/ciena/spanneti/spanneti/graph"
 	"net/http"
 	"reflect"
 )
 
-func (s *spanneti) LoadPlugin(name string, dataType reflect.Type, startCallback func(), eventCallback func(key string, value interface{}), httpHandler http.Handler) {
+func (s *spanneti) LoadPlugin(name string, dataType reflect.Type, startCallback func(), eventCallback func(key string, value interface{}) error, httpHandler http.Handler) {
 	if s.started {
 		panic("cannot load plugins after spanneti has started")
 	}
@@ -23,6 +24,13 @@ func (s *spanneti) LoadPlugin(name string, dataType reflect.Type, startCallback 
 	VerifyPlugin(plugin)
 
 	s.plugins[name] = plugin
+}
+
+func (spanneti *spanneti) FireEvent(plugin, key string, value interface{}) {
+	if err := spanneti.plugins[plugin].eventCallback(key, value); err != nil {
+		fmt.Println(plugin+":", err)
+		spanneti.resync(plugin, key, value)
+	}
 }
 
 func (spanneti *spanneti) GetAllDataFor(plugin string) interface{} {

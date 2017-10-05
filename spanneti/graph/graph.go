@@ -5,15 +5,20 @@ import (
 	"sync"
 )
 
+type pluginKeyValue struct {
+	plugin, key string
+	value       interface{}
+}
+
 type Graph struct {
-	containerLookup map[string]map[string]map[interface{}]map[ContainerID]*ContainerNetwork
+	containerLookup map[pluginKeyValue]map[ContainerID]*ContainerNetwork
 	containerMap    map[ContainerID]*ContainerNetwork
 	mutex           sync.Mutex
 }
 
 func New() *Graph {
 	return &Graph{
-		containerLookup: make(map[string]map[string]map[interface{}]map[ContainerID]*ContainerNetwork),
+		containerLookup: make(map[pluginKeyValue]map[ContainerID]*ContainerNetwork),
 		//linkMap:      make(map[LinkID]map[ContainerID]*ContainerNetwork),
 		containerMap: make(map[ContainerID]*ContainerNetwork),
 		//oltMap:       make(map[uint16]map[uint16]map[ContainerID]*ContainerNetwork),
@@ -49,22 +54,10 @@ func (graph *Graph) addContainerUnsafe(containerNet ContainerNetwork) {
 }
 
 func (graph *Graph) addUnsafe(plugin, key string, value interface{}, containerNet *ContainerNetwork) {
-	keyMap, exists := graph.containerLookup[plugin]
-	if !exists {
-		keyMap = make(map[string]map[interface{}]map[ContainerID]*ContainerNetwork)
-		graph.containerLookup[plugin] = keyMap
-	}
-
-	valueMap, exists := keyMap[key]
-	if !exists {
-		valueMap = make(map[interface{}]map[ContainerID]*ContainerNetwork)
-		keyMap[key] = valueMap
-	}
-
-	containerMap, exists := valueMap[value]
+	containerMap, exists := graph.containerLookup[pluginKeyValue{plugin, key, value}]
 	if !exists {
 		containerMap = make(map[ContainerID]*ContainerNetwork)
-		valueMap[value] = containerMap
+		graph.containerLookup[pluginKeyValue{plugin, key, value}] = containerMap
 	}
 
 	containerMap[containerNet.ContainerId] = containerNet
@@ -90,20 +83,10 @@ func (graph *Graph) removeContainerUnsafe(containerId ContainerID) ContainerNetw
 }
 
 func (graph *Graph) removeUnsafe(plugin, key string, value interface{}, containerId ContainerID) {
-	if keyMap, have := graph.containerLookup[plugin]; have {
-		if valueMap, have := keyMap[key]; have {
-			if containerMap, have := valueMap[value]; have {
-				delete(containerMap, containerId)
-				if len(containerMap) == 0 {
-					delete(valueMap, value)
-				}
-			}
-			if len(valueMap) == 0 {
-				delete(keyMap, key)
-			}
-		}
-		if len(keyMap) == 0 {
-			delete(graph.containerLookup, plugin)
+	if containerMap, have := graph.containerLookup[pluginKeyValue{plugin, key, value}]; have {
+		delete(containerMap, containerId)
+		if len(containerMap) == 0 {
+			delete(graph.containerLookup, pluginKeyValue{plugin, key, value})
 		}
 	}
 }
@@ -114,13 +97,9 @@ func (graph *Graph) GetRelatedTo(plugin, key string, value interface{}, tipe ref
 
 	//map[plugin][key][value]containerNet.pluginData[plugin]
 	relatedPluginValues := reflect.MakeSlice(reflect.SliceOf(tipe), 0, 0)
-	if keyMap, have := graph.containerLookup[plugin]; have {
-		if valueMap, have := keyMap[key]; have {
-			if containerMap, have := valueMap[value]; have {
-				for _, containerNet := range containerMap {
-					relatedPluginValues = reflect.Append(relatedPluginValues, reflect.ValueOf(containerNet.PluginData[plugin]))
-				}
-			}
+	if containerMap, have := graph.containerLookup[pluginKeyValue{plugin, key, value}]; have {
+		for _, containerNet := range containerMap {
+			relatedPluginValues = reflect.Append(relatedPluginValues, reflect.ValueOf(containerNet.PluginData[plugin]))
 		}
 	}
 	return relatedPluginValues.Interface()

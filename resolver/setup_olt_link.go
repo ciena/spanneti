@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
+	"os"
 	"runtime"
 	"strconv"
 )
 
-func SetupOLTContainerLink(ethName string, containerPid int, sTag, cTag uint16) error {
-	_, err := execSelf("setup-olt-container-link",
+func SetupContainerOLTInterface(ethName string, containerPid int, sTag, cTag uint16) error {
+	_, err := execSelf("setup-container-olt-interface",
 		"--eth-name="+ethName,
 		"--container-pid="+strconv.Itoa(containerPid),
 		"--s-tag="+strconv.Itoa(int(sTag)),
@@ -17,7 +18,7 @@ func SetupOLTContainerLink(ethName string, containerPid int, sTag, cTag uint16) 
 	return err
 }
 
-func setupOLTContainerLink(ethName string, containerPid, sTag, cTag int) error {
+func setupContainerOLTInterface(ethName string, containerPid, sTag, cTag int) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -65,11 +66,25 @@ func setupOLTContainerLink(ethName string, containerPid, sTag, cTag int) error {
 		return err
 	}
 
-	//add address
+	//address to add
 	addr, err := netlink.ParseAddr("192.168.0.1/24")
 	if err != nil {
 		return err
 	}
+
+	//do not add if already exists
+	addrs, err := containerHandle.AddrList(innerLink, 0)
+	if err != nil {
+		return err
+	}
+	for _, address := range addrs {
+		if address.IP.Equal(addr.IP) {
+			fmt.Fprintln(os.Stderr, "Address", addr.IP, "already assigned")
+			return nil
+		}
+	}
+
+	//add address
 	if err := containerHandle.AddrAdd(innerLink, addr); err != nil {
 		return err
 	}
@@ -118,7 +133,7 @@ func setupVlanAndInjectUnsafe(workingHandle, destHandle *netlink.Handle, destPid
 			return nil, err
 		}
 	}
-	fmt.Println("Setup", ethName, "OK")
+	fmt.Fprintln(os.Stderr, "Setup", ethName, "OK")
 
 	return link, nil
 }
@@ -130,7 +145,7 @@ func tryRecoverVlanUnsafe(handle *netlink.Handle, ethName string, parent netlink
 		//ensure correct type (vlan) and parent
 		if _, isVlan := link.(*netlink.Vlan); isVlan && link.Attrs().ParentIndex == parent.Attrs().Index {
 			//if the interface is set up correctly
-			fmt.Println("Interface", ethName, "already exists")
+			fmt.Fprintln(os.Stderr, "Interface", ethName, "already exists")
 			//ensure the interface is up
 			if link.Attrs().OperState != netlink.OperUp {
 				if err := handle.LinkSetUp(link); err != nil {

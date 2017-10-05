@@ -12,7 +12,7 @@ type Plugin struct {
 	name          string
 	dataType      reflect.Type
 	startCallback func()
-	eventCallback func(key string, value interface{})
+	eventCallback func(key string, value interface{}) error
 	httpHandler   http.Handler
 }
 
