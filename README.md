@@ -15,11 +15,32 @@ or follow some userful documents such as [kubernetes-the-hard-way](https://githu
 3. Make sure everthing goes well, and you can start to install spanneti now.
 
 
-## Running
-Deploy in a k8s cluster using the k8s deployment file.
-`kubectl apply -f k8s.yml`
+## Install
+Deploy in a kubernetes cluster using the kubernetes deployment file.
+
+#### Apply Spanneti to kubernetes cluster
+Type `kubectl apply -f k8s.yml` on master node to deploy spanneti.
 (You may want to pin the version)
 
+After deploy, you can use following commands to check status of spanneti.
+
+#### Check Spanneti Service
+Type `kubectl get services` and the result will look like below
+```
+NAME         CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
+kubernetes   10.96.0.1    <none>        443/TCP    9d
+spanneti     None         <none>        8080/TCP   9d
+```
+
+#### Check Spanneti Pods
+Type `kubectl get pods` and the result will look like below (Assume there're two nodes in your kubernetes cluster)
+```
+NAME                        READY     STATUS    RESTARTS   AGE
+spanneti-b6bc3              1/1       Running   4          9d
+spanneti-zz0rz              1/1       Running   5          9d
+```
+
+Make sure the status of each spanneti pods is `Running` before we start to conntect containers via Spanneti service.
 
 ### Configuration
 Environment variables can be changed in the k8s deployment file.
