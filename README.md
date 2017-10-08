@@ -42,6 +42,23 @@ spanneti-zz0rz              1/1       Running   5          9d
 
 Make sure the status of each spanneti pods is `Running` before we start to conntect containers via Spanneti service.
 
+## Usage
+As mentioned above, Spanneti build container networks based on tags.
+In order to make container belongs to same networks, you should set meta data to container via `--label com.opencord.network.graph={tag format}` when you run it.
+
+#### tag format
+{"olt": {
+    "<ethName>": {
+        "s-tag":<sTag>,
+        "c-tag":<cTag>
+    }},
+    ...
+"links": {
+    "<ethName2>":"<link_ID>",
+    ...
+}}
+
+
 ### Configuration
 Environment variables can be changed in the k8s deployment file.
  * DNS_NAME - name of the dns entry to lookup for peer discovery
