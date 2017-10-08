@@ -43,10 +43,11 @@ spanneti-zz0rz              1/1       Running   5          9d
 Make sure the status of each spanneti pods is `Running` before we start to conntect containers via Spanneti service.
 
 ## Usage
-As mentioned above, Spanneti build container networks based on tags.
+As mentioned above, Spanneti build container networks based on tags.  
 In order to make container belongs to same networks, you should set meta data to container via `--label com.opencord.network.graph={tag format}` when you run it.
 
 #### tag format
+```
 {"olt": {
     "<ethName>": {
         "s-tag":<sTag>,
@@ -57,9 +58,30 @@ In order to make container belongs to same networks, you should set meta data to
     "<ethName2>":"<link_ID>",
     ...
 }}
+```
+
+## Example
+In this example, you will run two containers with same tag and Spanneti will setup a point-to-point (L2) link between those two container on the same host.
+
+#### Watch Spanneti log
+Type `kubtctl log -f spanneti-xxxx` to check specific Spanneti Pod log.
 
 
-### Configuration
+#### Create containers
+Run following command on any node which runs a Spanneti Pod.  
+`docker run --name=e1 -d --restart=always --label=com.opencord.network.graph=\{\"links\":\{\"iface0\":\"UUID-1\"\}\} --net=none hwchiu/netutils sleep 100000`  
+`docker run --name=e2 -d --restart=always --label=com.opencord.network.graph=\{\"links\":\{\"iface0\":\"UUID-1\"\}\} --net=none hwchiu/netutils sleep 100000`  
+Now. Spanneti will connect that two containers (e1,e2) together because they has the same tag (**UUID-1**)  
+
+#### Testing
+You can use following command to verify point-to-point network.
+
+Type `docker exec -it e1 ping 8.8.8.8 -I iface0`, the container e1 will send a packet via its iface interface.  
+Type `docker exec -it e2 tcpdump -i iface0` and you will see ARP request issued from container e1.
+
+If you want to learn more about Spanneti example, you can refer to this [video](https://youtu.be/U46WBzygD7s?t=17m44s).
+
+## Configuration
 Environment variables can be changed in the k8s deployment file.
  * DNS_NAME - name of the dns entry to lookup for peer discovery
  * HOST_INTERFACE_NAME - name of the interface on which to setup networking
