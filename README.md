@@ -7,25 +7,26 @@ Spanneti listens for specially-tagged containers, and builds container networks 
 It was specifically designed to set up VNF chains, so it currently supports point-to-point L2 links (on a single host, or between multiple hosts),
 and OLT setup (s-tag/c-tag interfaces for the currently-limited tag-forwarding of ONOS).
 
-## Required Environment
-Since the Spanneti only supports kubernetes platform now, this install document will focus on kubernetes platform.
-1. You should prepare a kubernetes cluster, you can use kubernates build-in tool [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/) to setup cluster
-or follow some userful documents such as [kubernetes-the-hard-way](https://github.com/kelseyhightower/kubernetes-the-hard-way) step by step.
-2. In order to make kubernetes works, don't forget to setup a network for your kubernetes cluster, you can use Container Network Plugin(CNI) based networks, such as Flannel, Weave Net and so on.
-3. Make sure everthing goes well, and you can start to install spanneti now.
-
+## Environment Setup
+You will likely want a functioning container management system.
+For now, k8s is used as the reference implementation.
+Documentation for this is available elsewhere, try [kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/) or [kubernetes-the-hard-way](https://github.com/kelseyhightower/kubernetes-the-hard-way)
+In addition, you will need:
+* A pre-defined `fabric` interface on each host, which spanneti will use when creating networks.
+* A DNS entry which spanneti can use for peer discovery.  In the `k8s.yml`, this is done for you, by creating a `Service`.
 
 ## Install
-Deploy in a kubernetes cluster using the kubernetes deployment file.
 
-#### Apply Spanneti to kubernetes cluster
+#### Apply Spanneti to K8s Cluster
 Type `kubectl apply -f k8s.yml` on master node to deploy spanneti.
 (You may want to pin the version)
 
 After deploy, you can use following commands to check status of spanneti.
 
 #### Check Spanneti Service
-Type `kubectl get services` and the result will look like below
+`kubectl get services`
+
+The result should look like:
 ```
 NAME         CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
 kubernetes   10.96.0.1    <none>        443/TCP    9d
@@ -33,53 +34,63 @@ spanneti     None         <none>        8080/TCP   9d
 ```
 
 #### Check Spanneti Pods
-Type `kubectl get pods` and the result will look like below (Assume there're two nodes in your kubernetes cluster)
+`kubectl get pods`
+
+The result should look something like: (with one entry per node in the cluster)
 ```
 NAME                        READY     STATUS    RESTARTS   AGE
 spanneti-b6bc3              1/1       Running   4          9d
 spanneti-zz0rz              1/1       Running   5          9d
 ```
 
-Make sure the status of each spanneti pods is `Running` before we start to conntect containers via Spanneti service.
+The status of each spanneti pods should be `Running`.
+
+TODO: Deploy in a swarm cluster using a `docker-compose.yml` file.
 
 ## Usage
-As mentioned above, Spanneti build container networks based on tags.  
-In order to make container belongs to same networks, you should set meta data to container via `--label com.opencord.network.graph={tag format}` when you run it.
+As mentioned above, spanneti builds container networks based on tags.  
+In order to network containers, metadata will need to be added by specifying:
+* a container label `com.opencord.network.graph={tag-format}`, or
+* an environment variable `OPENCORD_NETWORK_GRAPH={tag-format}`
 
-#### tag format
+#### Tag Format
 ```
 {"olt": {
     "<ethName>": {
         "s-tag":<sTag>,
         "c-tag":<cTag>
-    }},
+    },
     ...
-"links": {
+  },
+  "links": {
     "<ethName2>":"<link_ID>",
     ...
 }}
 ```
+(`olt` section is implemented by the `olt` plugin, `links` section is implemented by the `link` plugin)
 
-## Example
-In this example, you will run two containers with same tag and Spanneti will setup a point-to-point (L2) link between those two container on the same host.
+## Basic Example
+In this example, we will run two containers, and spanneti will setup a point-to-point (L2) link between those two containers.
 
-#### Watch Spanneti log
-Type `kubtctl log -f spanneti-xxxx` to check specific Spanneti Pod log.
+This example was created from this [demo video](https://youtu.be/U46WBzygD7s?t=17m44s).
+
+#### Watch spanneti log
+Type `kubtctl log -f spanneti-xxxx` to follow a spanneti instance's logs.
 
 
 #### Create containers
-Run following command on any node which runs a Spanneti Pod.  
+Run following commands on any nodes which run a spanneti Pod. 
 `docker run --name=e1 -d --restart=always --label=com.opencord.network.graph=\{\"links\":\{\"iface0\":\"UUID-1\"\}\} --net=none hwchiu/netutils sleep 100000`  
 `docker run --name=e2 -d --restart=always --label=com.opencord.network.graph=\{\"links\":\{\"iface0\":\"UUID-1\"\}\} --net=none hwchiu/netutils sleep 100000`  
-Now. Spanneti will connect that two containers (e1,e2) together because they has the same tag (**UUID-1**)  
+Now. spanneti will connect that two containers (e1,e2) together because they has the same tag (**UUID-1**) 
 
 #### Testing
 You can use following command to verify point-to-point network.
 
-Type `docker exec -it e1 ping 8.8.8.8 -I iface0`, the container e1 will send a packet via its iface interface.  
-Type `docker exec -it e2 tcpdump -i iface0` and you will see ARP request issued from container e1.
+`docker exec -it e1 ping 8.8.8.8 -I iface0`, the container e1 will send packets via its iface interface.  
+`docker exec -it e2 tcpdump -i iface0` and you will see ARP request issued from container e1.
 
-If you want to learn more about Spanneti example, you can refer to this [video](https://youtu.be/U46WBzygD7s?t=17m44s).
+Note that the ping will not get replies, as there is no DHCP service running in these containers.
 
 ## Configuration
 Environment variables can be changed in the k8s deployment file.
