@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"net"
@@ -34,8 +35,11 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 
 	//clean up previous
 	if link, err := containerHandle.LinkByName(ethName); err == nil {
-		//if the container exists, but is not a vxlan link, delete it
-		if link, isVxlan := link.(*netlink.Vxlan); !isVxlan {
+		//if the interface exists, but is not a vxlan link, delete it
+		if vxlanLink, isVxlan := link.(*netlink.Vxlan); isVxlan && vxlanLink.VxlanId == tunnelId && vxlanLink.Group.Equal(net.ParseIP(peerFabricIp)) {
+			//nothing to do
+			return nil
+		} else {
 			if err := containerHandle.LinkDel(link); err != nil {
 				return err
 			}
@@ -84,6 +88,9 @@ func setupRemoteContainerLink(ethName string, containerPid int, tunnelId int, pe
 		L3miss:   false,
 	}
 	if err := hostHandle.LinkAdd(link); err != nil {
+		if err.Error() == "file exists" {
+			return errors.New("tunnel unavailable")
+		}
 		return err
 	}
 

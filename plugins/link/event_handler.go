@@ -85,10 +85,8 @@ func (plugin *linkPlugin) tryCreateRemoteLink(nets []LinkData, linkId linkID) er
 	if err != nil {
 		return err
 	}
-	if setup, err := plugin.tryConnect(linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
+	if err := plugin.tryConnect(linkId, nets[0].GetIfaceFor(linkId), containerPid); err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Println("Setup link to remote?:", setup)
 	}
 	return nil
 }

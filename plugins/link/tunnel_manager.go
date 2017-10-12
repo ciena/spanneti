@@ -57,7 +57,7 @@ func (man *tunnelManager) allocate(linkId linkID, ethName string, containerPid i
 
 	fmt.Printf("Setup link %s:%s to %s via %d\n", ethName, linkId, fabricIp, tunnelId)
 	if err := resolver.SetupRemoteContainerLink(ethName, containerPid, int(tunnelId), fabricIp); err != nil {
-		if err.Error() == "file exists" {
+		if err.Error() == "tunnel unavailable" {
 			fmt.Println("TunnelId", tunnelId, "unavailable")
 			return false, nil
 		}

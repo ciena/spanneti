@@ -91,7 +91,7 @@ func setupTenantIpContainerLink(ethName string, containerPid int, tenantIp strin
 	}
 
 	//add address
-	addr, err := netlink.ParseAddr(tenantIp + "/32")
+	addr, err := netlink.ParseAddr(tenantIp)
 	if err != nil {
 		return err
 	}

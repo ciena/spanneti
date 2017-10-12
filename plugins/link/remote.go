@@ -60,7 +60,7 @@ func determineOwnId() peerID {
 //get availability from remote
 //provision on remote
 //provision locally
-func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid int) (bool, error) {
+func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid int) error {
 	peerIps, possibilities := man.getPeersWithLink(linkId)
 
 	if len(possibilities) != 1 {
@@ -69,7 +69,7 @@ func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid in
 		} else {
 			fmt.Println("Too many remote containers with linkId", linkId)
 		}
-		return false, nil
+		return nil
 	}
 
 	peerId := peerIps[0]
@@ -88,16 +88,20 @@ func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid in
 			setup, tunnelId, err = man.requestSetup(peerId, linkId, tunnelId)
 			if err != nil {
 				man.resync(peerId, linkId)
-				return false, err
+				return err
 			}
 
-			//if not setup remotely, verify that the suggested tunnelId is valid
+			//if not setup remotely
 			if !setup {
-				if tunnel := man.tunnelMan.thisOrNextAvailableTunnelId(tunnelId); tunnel == nil {
-					man.resync(peerId, linkId)
-					return false, errors.New("Out of tunnelIds?")
-				} else {
+				//check for an existing tunnel
+				if existingTunnelId, exists := man.tunnelMan.tunnelFor(fabricIp, linkId); exists && existingTunnelId > tunnelId {
+					tunnelId = existingTunnelId
+					//else verify that the suggested tunnelId is valid
+				} else if tunnel := man.tunnelMan.thisOrNextAvailableTunnelId(tunnelId); tunnel != nil {
 					tunnelId = *tunnel
+				} else {
+					man.resync(peerId, linkId)
+					return errors.New("Out of tunnelIds?")
 				}
 			}
 		}
@@ -106,7 +110,7 @@ func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid in
 		allocated, err := man.tunnelMan.allocate(linkId, ethName, containerPid, tunnelId, fabricIp)
 		if err != nil {
 			man.resync(peerId, linkId)
-			return false, err
+			return err
 		}
 
 		if allocated {
@@ -122,19 +126,19 @@ func (man *linkPlugin) tryConnect(linkId linkID, ethName string, containerPid in
 
 			if tunnel == nil {
 				man.resync(peerId, linkId)
-				return false, errors.New("Out of tunnelIds?")
+				return errors.New("Out of tunnelIds?")
 			} else {
 				tunnelId = *tunnel
 			}
 
 			if err := man.requestDelete(peerId, linkId); err != nil {
 				man.resync(peerId, linkId)
-				return false, err
+				return err
 			}
 			setup = false
 		}
 	}
-	return true, nil
+	return nil
 }
 
 func (man *linkPlugin) tryCleanup(linkId linkID) error {
